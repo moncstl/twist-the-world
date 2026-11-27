@@ -350,7 +350,10 @@
         e.frd != null ? '전일 ' + (e.frd > 0 ? '+' : '') + e.frd.toFixed(2) + 'p' : ''));
       if (e.fl != null) cells.push(cell('유통비율', e.fl.toFixed(1) + '%', '주요주주·자사주 제외'));
       if (e.sh != null) cells.push(cell('공매도 비중', e.sh.toFixed(2) + '%',
-        e.shb != null ? '잔량 ' + e.shb.toFixed(2) + '%' : ''));
+        e.sh5 != null ? '5일 ' + (e.sh5 > 0 ? '+' : '') + e.sh5.toFixed(2) + 'p' : (e.shb != null ? '잔량 ' + e.shb.toFixed(2) + '%' : '')));
+      if (e.per != null) cells.push(cell('PER', e.per.toFixed(1) + '배',
+        e.up != null ? '컨센 ' + (e.up > 0 ? '+' : '') + e.up.toFixed(0) + '%' : '공개 재무'));
+      if (e.atr != null) cells.push(cell('20일 ATR', e.atr.toFixed(2) + '%', '변동성 기준'));
       if (e.sq != null) cells.push(cell('품절 점수', e.sq.toFixed(1), '유통물량 잠김 정도'));
       if (e.tn != null) cells.push(cell('회전율', e.tn.toFixed(1) + '%', '유통주식수 대비'));
       cells.push(cell('구분', esc(e.m), e.sec ? esc(e.sec) : ''));
