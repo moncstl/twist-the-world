@@ -79,7 +79,41 @@
     img.addEventListener('error', function () { img.classList.add('broken'); });
   });
 
-  /* 6) PWA 서비스워커(http/https에서만 — file:// 미리보기에서는 건너뜀) */
+  /* 6) 크로스 점프 — 화면 안 링크는 부드럽게 이동하고 대상 카드를 1.5초 강조한다 */
+  function jumpTo(id) {
+    var el = document.getElementById(id);
+    if (!el) return false;
+    if (el.tagName === 'DETAILS') el.open = true;
+    var top = el.getBoundingClientRect().top + window.pageYOffset - 72;
+    try { window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' }); }
+    catch (e) { window.scrollTo(0, Math.max(0, top)); }
+    el.classList.remove('jump-hit');
+    void el.offsetWidth;
+    el.classList.add('jump-hit');
+    clearTimeout(el._jt);
+    el._jt = setTimeout(function () { el.classList.remove('jump-hit'); }, 1600);
+    return true;
+  }
+
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest ? e.target.closest('a[href^="#"]') : null;
+    if (!a) return;
+    var href = a.getAttribute('href') || '';
+    if (href.length < 2) return;
+    if (!document.getElementById(href.slice(1))) return;
+    e.preventDefault();
+    jumpTo(href.slice(1));
+    try { history.replaceState(null, '', href); } catch (err) {}
+  });
+
+  function openHash() {
+    var h = (location.hash || '').replace('#', '');
+    if (h) setTimeout(function () { jumpTo(h); }, 120);
+  }
+  openHash();
+  window.addEventListener('hashchange', openHash);
+
+  /* 7) PWA 서비스워커(http/https에서만 — file:// 미리보기에서는 건너뜀) */
   if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('sw.js').catch(function () {});
