@@ -1,0 +1,35 @@
+{
+  "name": "세상을비틀다 — 코스피 롱숏 · 매수 타점",
+  "short_name": "세상을비틀다",
+  "description": "코스피 롱·숏 2주 시나리오, 코스피100 선점 타점, 섹터 자금이동을 매일 갱신하는 공개 대시보드",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#070b14",
+  "theme_color": "#070b14",
+  "categories": [
+    "finance",
+    "news"
+  ],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
