@@ -5,8 +5,8 @@
   "tagline": "시장 레이더 · 2주 롱숏 & 타점 보드",
   "market_date": "2026-11-27",
   "market_date_label": "2026-11-27(금)",
-  "generated_at": "2026-11-27 17:17",
-  "as_of_run": "2026-11-27 17:17",
+  "generated_at": "2026-11-27 17:19",
+  "as_of_run": "2026-11-27 17:19",
   "privacy_masked": true,
   "offline": false,
   "sources": [
@@ -19,7 +19,7 @@
   ]
  },
  "market": {
-  "as_of_run": "2026-11-27 17:17",
+  "as_of_run": "2026-11-27 17:19",
   "cards": [
    {
     "key": "KOSPI",
@@ -46,10 +46,10 @@
    {
     "key": "NQ",
     "label": "나스닥100 선물",
-    "value": 26712.25,
+    "value": 26741.25,
     "digits": 1,
-    "pct": 2.34,
-    "as_of": "2026-11-27 17:07 KST",
+    "pct": 2.46,
+    "as_of": "2026-11-27 17:09 KST",
     "note": "미장 개장 전 선물",
     "spark": null,
     "source": "Yahoo Finance"
@@ -1040,7 +1040,7 @@
    "kind": "sector",
    "code": "278",
    "name": "반도체와반도체장비",
-   "change_pct": 4.97,
+   "change_pct": 5.04,
    "value_eok": null,
    "source": "naver_live"
   },
@@ -1097,7 +1097,7 @@
     "top10_weight": 68.92,
     "prev_date": null,
     "leverage": false,
-    "reason": "오늘 거래대금 1조 4,378억로 후보 중 최대 — 반도체와반도체장비 노출 58.9%"
+    "reason": "오늘 거래대금 1조 4,378억으로 후보 중 최대 — 반도체와반도체장비 노출 58.9%"
    },
    {
     "code": "102110",
@@ -1150,7 +1150,7 @@
     "top10_weight": 68.88,
     "prev_date": null,
     "leverage": false,
-    "reason": "오늘 거래대금 5,986억로 후보 중 최대 — 반도체와반도체장비 노출 58.9%"
+    "reason": "오늘 거래대금 5,986억으로 후보 중 최대 — 반도체와반도체장비 노출 58.9%"
    },
    {
     "code": "396500",
@@ -1211,7 +1211,7 @@
     "top10_weight": 99.32,
     "prev_date": null,
     "leverage": false,
-    "reason": "오늘 거래대금 2,326억로 후보 중 최대 — 반도체와반도체장비 노출 99.3%"
+    "reason": "오늘 거래대금 2,326억으로 후보 중 최대 — 반도체와반도체장비 노출 99.3%"
    }
   ],
   "an2": [
