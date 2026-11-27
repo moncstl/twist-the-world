@@ -710,8 +710,7 @@
       + kv('총보수', d.ter != null ? d.ter.toFixed(2) + '%' : '—', '연 기준')
       + kv('분배율(TTM)', d.div != null ? d.div.toFixed(2) + '%' : '—', d.cycle || '')
       + kv('최근 분배금', d.last_div != null ? won(d.last_div) + '원' : '—', d.ex_date ? '배당락 ' + d.ex_date : '')
-      + '</div><p class="d-hint">분배율이 높아도 그만큼 주가가 빠지면 남는 수익이 없습니다. 위 1·3개월 수익률과 함께 보세요.
-        NAV는 기준일이 하루 전일 수 있어, 현재가와 NAV의 차이는 괴리율이 아닙니다(괴리율은 iNAV 기준).</p></section>';
+      + '</div><p class="d-hint">분배율이 높아도 그만큼 주가가 빠지면 남는 수익이 없습니다. 위 1·3개월 수익률과 함께 보세요. NAV는 기준일이 하루 전일 수 있어, 현재가와 NAV의 차이는 괴리율이 아닙니다(괴리율은 iNAV 기준).</p></section>';
 
     var tops = d.tops || [];
     h += '<section class="card d-card wide"><h3>구성종목 TOP 10 <em>비중 · 전일비 변동</em></h3>';
