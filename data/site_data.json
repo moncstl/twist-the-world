@@ -5,8 +5,8 @@
   "tagline": "시장 레이더 · 2주 롱숏 & 타점 보드",
   "market_date": "2026-11-27",
   "market_date_label": "2026-11-27(금)",
-  "generated_at": "2026-11-27 17:08",
-  "as_of_run": "2026-11-27 17:08",
+  "generated_at": "2026-11-27 17:17",
+  "as_of_run": "2026-11-27 17:17",
   "privacy_masked": true,
   "offline": false,
   "sources": [
@@ -19,7 +19,7 @@
   ]
  },
  "market": {
-  "as_of_run": "2026-11-27 17:08",
+  "as_of_run": "2026-11-27 17:17",
   "cards": [
    {
     "key": "KOSPI",
@@ -46,10 +46,10 @@
    {
     "key": "NQ",
     "label": "나스닥100 선물",
-    "value": 26699.25,
+    "value": 26712.25,
     "digits": 1,
-    "pct": 2.29,
-    "as_of": "2026-11-27 16:58 KST",
+    "pct": 2.34,
+    "as_of": "2026-11-27 17:07 KST",
     "note": "미장 개장 전 선물",
     "spark": null,
     "source": "Yahoo Finance"
@@ -640,11 +640,11 @@
     "RSI 38.9 과매도 탈출 구간 — 눌림 반등 자리",
     "MACD 히스토그램 양전·확대 — 추세 전환 신호"
    ],
-   "entry1": 181700.0,
-   "entry2": 176600.0,
-   "target": 190300.0,
-   "stop": 166400.0,
-   "rr": 0.56,
+   "entry1": 166900.0,
+   "entry2": 166400.0,
+   "target": 181800.0,
+   "stop": 162100.0,
+   "rr": 3.1,
    "rsi": 38.88,
    "short_ratio": 0.03,
    "frgn_5d": 104291.0,
@@ -653,16 +653,16 @@
    "kospi_pct": 4.11,
    "regime": "Risk-Off",
    "sigma": 4.72,
-   "weight": 20,
-   "entry_grade": "관망·대기",
-   "split": "신규 진입 보류 — 가격 추적만(비중 상한 20%)",
+   "weight": 69,
+   "entry_grade": "분할 매수",
+   "split": "1차 50% : 2차 50%",
    "window": "2026-11-30(월) 09:00~09:30(개장 첫 30분)",
    "mode": "돌파 매수",
    "plan_note": "비중은 '이 종목에 배정하려던 매수금' 대비 비율입니다(계좌 전체 비중 아님).",
-   "e1_src": "일봉 MA20 (+8.93%)",
-   "e2_src": "0.6σ(4.7%) 하단 · 돌파 후 지지 (+5.88%)",
-   "t_src": "매물대 저항",
-   "s_src": "15분봉 MA20",
+   "e1_src": "60분봉 MA5 (+0.06%)",
+   "e2_src": "15분봉 MA20 · 돌파 후 지지 (-0.24%)",
+   "t_src": "일봉 MA20",
+   "s_src": "30분봉 MA20",
    "reasons_plan": [
     "롱숏 롱 우위(약) ×1.15",
     "종합 71점 +0.06"
@@ -1040,7 +1040,7 @@
    "kind": "sector",
    "code": "278",
    "name": "반도체와반도체장비",
-   "change_pct": 4.8,
+   "change_pct": 4.97,
    "value_eok": null,
    "source": "naver_live"
   },
