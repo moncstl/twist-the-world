@@ -330,6 +330,8 @@ html[data-theme="light"] .chip.warn{color:#7a5200; background:rgba(183,121,31,.1
 .content-card{border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;
   background:color-mix(in srgb,var(--surface) 88%,transparent); transition:border-color .2s, transform .2s}
 .content-card:hover{border-color:color-mix(in srgb,var(--accent) 42%,var(--line)); transform:translateY(-2px)}
+.content-card.is-pending{cursor:default; opacity:.86}
+.content-card.is-pending:hover{border-color:var(--line); transform:none}
 .thumb{position:relative; aspect-ratio:16/9; background:linear-gradient(140deg,#16233b,#0c1524); overflow:hidden}
 .thumb.t-01{background:linear-gradient(135deg,#2b1b3f 0%,#141b31 62%,#0c1524 100%)}
 .thumb.t-02{background:linear-gradient(135deg,#0d2a3d 0%,#0f1b30 62%,#0c1524 100%)}

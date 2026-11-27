@@ -5,8 +5,8 @@
   "tagline": "시장 레이더 · 2주 롱숏 & 타점 보드",
   "market_date": "2026-11-27",
   "market_date_label": "2026-11-27(금)",
-  "generated_at": "2026-11-27 16:24",
-  "as_of_run": "2026-11-27 16:24",
+  "generated_at": "2026-11-27 16:31",
+  "as_of_run": "2026-11-27 16:31",
   "privacy_masked": true,
   "offline": false,
   "sources": [
@@ -19,7 +19,7 @@
   ]
  },
  "market": {
-  "as_of_run": "2026-11-27 16:24",
+  "as_of_run": "2026-11-27 16:31",
   "cards": [
    {
     "key": "KOSPI",
@@ -46,10 +46,10 @@
    {
     "key": "NQ",
     "label": "나스닥100 선물",
-    "value": 26730.0,
+    "value": 26738.0,
     "digits": 1,
-    "pct": 2.41,
-    "as_of": "2026-11-27 16:14 KST",
+    "pct": 2.44,
+    "as_of": "2026-11-27 16:21 KST",
     "note": "미장 개장 전 선물",
     "spark": null,
     "source": "Yahoo Finance"
@@ -557,11 +557,11 @@
     "MACD 히스토그램 양전·확대 — 추세 전환 신호",
     "RSI 53.9 중립 하단 — 상승 여력 남음"
    ],
-   "entry1": 173800.0,
-   "entry2": 172400.0,
+   "entry1": 174200.0,
+   "entry2": 173800.0,
    "target": 184000.0,
-   "stop": 169300.0,
-   "rr": 2.27,
+   "stop": 169700.0,
+   "rr": 2.18,
    "rsi": 53.92,
    "short_ratio": 4.24,
    "frgn_5d": 79526.0,
@@ -576,10 +576,10 @@
    "window": "2026-11-30(월) 09:00~09:30(개장 첫 30분)",
    "mode": "눌림 매수",
    "plan_note": "비중은 '이 종목에 배정하려던 매수금' 대비 비율입니다(계좌 전체 비중 아님).",
-   "e1_src": "15분봉 MA20 (-0.57%)",
-   "e2_src": "당일 VWAP (-1.37%)",
+   "e1_src": "60분봉 MA5 (-0.34%)",
+   "e2_src": "15분봉 MA20 (-0.57%)",
    "t_src": "20일 전고",
-   "s_src": "30분봉 MA20",
+   "s_src": "당일 VWAP",
    "reasons_plan": [
     "롱숏 롱 우위(약) ×1.15",
     "종합 81점 +0.06"
@@ -1045,7 +1045,8 @@
     "video_id": "uV0ByXPy4Nc",
     "date": "2026-11-27",
     "status": "private",
-    "duration": null
+    "duration": null,
+    "linkable": true
    },
    {
     "key": "03_2026-11-27_KR_STOCK_003670_BLOG",
@@ -1057,7 +1058,8 @@
     "video_id": null,
     "date": "2026-11-27",
     "status": "public",
-    "duration": null
+    "duration": null,
+    "linkable": false
    },
    {
     "key": "06_2026-11-27_KR_CALLPUT_BLOG",
@@ -1069,7 +1071,8 @@
     "video_id": null,
     "date": "2026-11-27",
     "status": "public",
-    "duration": null
+    "duration": null,
+    "linkable": false
    },
    {
     "key": "03_2026-11-27_KR_STOCK_003670",
@@ -1081,7 +1084,8 @@
     "video_id": "6IU6xF0jpMs",
     "date": "2026-11-27",
     "status": "private",
-    "duration": null
+    "duration": null,
+    "linkable": true
    },
    {
     "key": "06_2026-11-27_KR_CALLPUT_7TH_V2",
@@ -1093,7 +1097,8 @@
     "video_id": "KyQwFUs2v5U",
     "date": "2026-11-27",
     "status": "private",
-    "duration": 55.07
+    "duration": 55.07,
+    "linkable": true
    },
    {
     "key": "01_2026-11-27_ELON_MUSK_STORY",
@@ -1105,7 +1110,8 @@
     "video_id": "TyAjjMH2I1A",
     "date": "2026-11-27",
     "status": "private",
-    "duration": 56.866
+    "duration": 56.866,
+    "linkable": true
    },
    {
     "key": "01_2026-11-27_TRUMP_STORY",
@@ -1117,7 +1123,8 @@
     "video_id": "WRnnXECdjO8",
     "date": "2026-11-27",
     "status": "private",
-    "duration": 55.1
+    "duration": 55.1,
+    "linkable": true
    },
    {
     "key": "06_2026-11-27_US_ELON_MUSK_NEWS",
@@ -1129,7 +1136,8 @@
     "video_id": "GBSbLHTG0i0",
     "date": "2026-11-27",
     "status": "private",
-    "duration": 53.641
+    "duration": 53.641,
+    "linkable": true
    },
    {
     "key": "02_2026-11-26_SPACEX_TESLA_MERGER",
@@ -1141,7 +1149,8 @@
     "video_id": "odH84VR83-k",
     "date": "2026-11-26",
     "status": "private",
-    "duration": 41.766
+    "duration": 41.766,
+    "linkable": true
    },
    {
     "key": "2026-11-24_SK01_JENSEN_RETURN",
@@ -1153,7 +1162,8 @@
     "video_id": "-MAosoyK_TQ",
     "date": "2026-11-24",
     "status": "private",
-    "duration": 56.0
+    "duration": 56.0,
+    "linkable": true
    }
   ],
   "blogs": [
@@ -1167,7 +1177,8 @@
     "video_id": null,
     "date": "2026-11-27",
     "status": "public",
-    "duration": null
+    "duration": null,
+    "linkable": false
    },
    {
     "key": "06_2026-11-27_KR_CALLPUT_BLOG",
@@ -1179,7 +1190,8 @@
     "video_id": null,
     "date": "2026-11-27",
     "status": "public",
-    "duration": null
+    "duration": null,
+    "linkable": false
    }
   ],
   "pending": [
