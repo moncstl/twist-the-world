@@ -1029,3 +1029,120 @@ html[data-theme="light"] .relay-state.state-open{color:#04241a}
   .cal-cell{min-height:64px}
   .cc-verdict{display:none}
 }
+
+/* ── 🛡 관망 배너 · 톤 ───────────────────────────────── */
+.hd-note{font-size:11px; font-weight:700; color:var(--warn); border:1px solid color-mix(in srgb,var(--warn) 40%,var(--line));
+  border-radius:999px; padding:3px 9px; margin-left:8px; vertical-align:middle; letter-spacing:0}
+.risk-banner{display:flex; flex-wrap:wrap; gap:6px 12px; align-items:baseline; margin:0 0 16px; padding:11px 14px;
+  border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line)); border-radius:var(--radius-sm);
+  background:color-mix(in srgb,var(--accent) 7%,var(--surface)); font-size:12px}
+.risk-banner b{font-size:12.5px}
+.risk-banner span{color:var(--muted); font-size:11.5px; line-height:1.6}
+.risk-banner.warn{border-color:color-mix(in srgb,var(--warn) 45%,var(--line));
+  background:color-mix(in srgb,var(--warn) 9%,var(--surface))}
+.risk-banner.warn b{color:var(--warn)}
+.hold-strip{margin:8px 0 2px; padding:7px 11px; border-radius:9px; font-size:11.5px; font-weight:750;
+  color:var(--warn); background:color-mix(in srgb,var(--warn) 12%,transparent);
+  border:1px dashed color-mix(in srgb,var(--warn) 45%,var(--line))}
+
+/* ── 🧮 포지션 계산기 ───────────────────────────────── */
+.poscalc{margin-top:12px; padding:12px 13px; border:1px dashed var(--line); border-radius:var(--radius-sm);
+  background:color-mix(in srgb,var(--bg) 42%,transparent)}
+.pc-head{display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:8px}
+.pc-head b{font-size:12.5px}
+.pc-head span{font-size:10px; color:var(--muted)}
+.pc-fields{display:flex; flex-wrap:wrap; gap:8px 12px; margin-bottom:9px}
+.pc-fields label{display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--muted); font-weight:700}
+.pc-fields input{font-family:inherit; font-size:12px; font-variant-numeric:tabular-nums; color:var(--text);
+  background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:6px 8px; width:112px}
+.pc-fields input.pc-risk{width:64px; text-align:right}
+.pc-fields input:focus{outline:2px solid var(--accent-2); outline-offset:1px}
+.pc-out{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px}
+.pc-out span{display:grid; gap:1px; padding:7px 8px; border-radius:8px; background:var(--surface-2);
+  border:1px solid var(--line-soft); font-size:10px; color:var(--muted)}
+.pc-out b{font-size:13px; color:var(--text); font-variant-numeric:tabular-nums}
+.pc-note{display:block; margin-top:7px; font-size:10px; color:var(--muted); line-height:1.55}
+.pc-note:first-of-type{margin-top:6px}
+
+/* ── 📊 시장 내부 강도 ──────────────────────────────── */
+.internals{margin-top:16px; padding:16px 18px 12px}
+.int-grid{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px}
+.int-cell{padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--surface-2); min-width:0}
+.int-cell span{display:block; font-size:10.5px; color:var(--muted)}
+.int-cell b{font-size:16px; font-variant-numeric:tabular-nums}
+.int-cell em{font-style:normal; font-size:10.5px; margin-left:4px}
+.int-bar{height:6px; border-radius:999px; background:var(--line-soft); margin:7px 0 5px; overflow:hidden}
+.int-bar i{display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+.int-cell small{display:block; font-size:9.5px; color:var(--muted); line-height:1.5}
+.int-cell.wide{grid-column:span 1}
+
+/* ── 공매도 목록 링크 ──────────────────────────────── */
+.sh-list li.sh-link, .sh-list li a.sh-link{display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:8px;
+  align-items:baseline; color:inherit}
+.sh-list a.sh-link{font-size:11.5px; padding:5px 0; border-bottom:1px dashed var(--line-soft)}
+.sh-list a.sh-link:last-child{border-bottom:0}
+.sh-list a.sh-link:hover{color:var(--accent)}
+.sh-list a.sh-link span em{display:block; font-style:normal; font-size:9px; color:var(--muted)}
+.sh-list a.sh-link small{grid-column:1/-1; font-size:9px; color:var(--muted)}
+.sh-list a.sh-link b{font-variant-numeric:tabular-nums}
+.sh-list a.sh-link em{font-style:normal; font-size:10px; color:var(--muted)}
+
+/* ── 🔍 상세페이지 ─────────────────────────────────── */
+.detail-root{padding:0 0 60px; min-height:60vh}
+body.detail-open{overflow-x:hidden}
+body.detail-open #main, body.detail-open .tabbar{display:none}
+.d-top{position:sticky; top:64px; z-index:20; display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  padding:14px 0 12px; margin-bottom:16px; border-bottom:1px solid var(--line);
+  background:color-mix(in srgb,var(--bg) 92%,transparent); backdrop-filter:blur(10px)}
+.d-back{flex:none; font-family:inherit; font-size:12.5px; font-weight:750; color:var(--text); cursor:pointer;
+  background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:8px 12px}
+.d-back:hover{border-color:var(--accent); color:var(--accent)}
+.d-title{min-width:0; flex:1}
+.d-title h2{font-size:clamp(19px,2.4vw,25px); display:flex; align-items:baseline; gap:8px; flex-wrap:wrap}
+.d-title h2 .code{font-size:11.5px; color:var(--muted); font-weight:600; letter-spacing:.02em}
+.d-sub{font-size:11.5px; color:var(--muted); margin-top:2px}
+.d-price{text-align:right; display:grid; gap:1px}
+.d-price b{font-size:24px; letter-spacing:-.03em; font-variant-numeric:tabular-nums}
+.d-price span{font-size:12px; font-weight:800}
+.d-grid{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px}
+.d-card{padding:15px 16px 13px; min-width:0}
+.d-card.wide{grid-column:1/-1}
+.d-card h3{font-size:13.5px; margin-bottom:9px; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap}
+.d-card h3 em{font-style:normal; font-size:10px; color:var(--muted); font-weight:600}
+.d-kv{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px}
+.d-kv>div{padding:8px 9px; border:1px solid var(--line-soft); border-radius:9px; background:var(--surface-2); min-width:0}
+.d-kv span{display:block; font-size:9.5px; color:var(--muted); font-weight:700}
+.d-kv b{font-size:13.5px; font-variant-numeric:tabular-nums; letter-spacing:-.01em}
+.d-kv em{display:block; font-style:normal; font-size:9.5px; color:var(--muted); margin-top:1px; line-height:1.45}
+.d-list{display:grid; gap:5px; font-size:11.5px}
+.d-list li{display:flex; gap:8px; align-items:baseline; padding:5px 0; border-bottom:1px dashed var(--line-soft)}
+.d-list li:last-child{border-bottom:0}
+.d-list .k{color:var(--muted); min-width:74px; font-size:10.5px}
+.d-list .v{margin-left:auto; font-variant-numeric:tabular-nums; font-weight:700}
+.d-tbl{width:100%; border-collapse:collapse; font-size:11.5px; margin-top:4px}
+.d-tbl th{text-align:left; font-size:9.5px; color:var(--muted); font-weight:750; padding:4px 5px; border-bottom:1px solid var(--line)}
+.d-tbl td{padding:6px 5px; border-bottom:1px dashed var(--line-soft); vertical-align:middle}
+.d-tbl td.num{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+.d-tbl tbody tr:last-child td{border-bottom:0}
+.d-spark{width:100%; height:56px; margin-top:4px}
+.d-chips{display:flex; flex-wrap:wrap; gap:6px}
+.d-chip{display:inline-flex; align-items:center; gap:6px; font-size:11px; padding:5px 9px; border-radius:999px;
+  border:1px solid var(--line); background:var(--surface-2)}
+.d-chip b{font-variant-numeric:tabular-nums}
+.d-chip:hover{border-color:var(--accent); color:var(--accent)}
+.d-hint{font-size:10.5px; color:var(--muted); line-height:1.6; margin-top:8px}
+.d-empty{padding:60px 0; text-align:center; color:var(--muted)}
+@media (max-width:900px){
+  .d-grid{grid-template-columns:1fr}
+  .int-grid{grid-template-columns:1fr 1fr}
+  .pc-out{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:760px){
+  .d-top{top:56px; gap:10px; padding:10px 0}
+  .d-title h2{font-size:17px}
+  .d-price b{font-size:19px}
+  .d-kv{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .int-grid{grid-template-columns:1fr}
+  .pc-fields input{width:100%}
+  .pc-fields label{flex:1 1 46%}
+}

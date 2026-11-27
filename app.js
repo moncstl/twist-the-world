@@ -229,6 +229,17 @@
       hideSearch();
       return;
     }
+    // 2026-11-27: 종목·ETF는 상세페이지로, 상세 데이터가 없으면 요약 모달로
+    if (e.m === 'ETF' && (DET.etfs || {})[e.t]) {
+      hideSearch();
+      location.hash = '#detail/etf/' + e.t;
+      return;
+    }
+    if ((DET.stocks || {})[e.t]) {
+      hideSearch();
+      location.hash = '#detail/stock/' + e.t;
+      return;
+    }
     openStock(e);
   }
   function hideSearch() {
@@ -366,6 +377,8 @@
     if (document.getElementById('flow-st-' + e.t)) links += '<a class="sm-chip link" href="#flow-st-' + esc(e.t) + '" data-jump="1">수급 표로</a>';
     if (document.getElementById('sq-' + e.t)) links += '<a class="sm-chip link" href="#sq-' + esc(e.t) + '" data-jump="1">품절 표로</a>';
     if (e.m === 'ETF') links += '<a class="sm-chip link" href="#etf" data-jump="1">ETF 2안으로</a>';
+    if (e.m === 'ETF' && (DET.etfs || {})[e.t]) links += '<a class="sm-chip link" href="#detail/etf/' + esc(e.t) + '">ETF 상세페이지</a>';
+    else if ((DET.stocks || {})[e.t]) links += '<a class="sm-chip link" href="#detail/stock/' + esc(e.t) + '">종목 상세페이지</a>';
     links += '<a class="sm-chip link" href="#scorecard" data-jump="1">성적표</a>';
 
     openModal(head + '<div class="sm-grid">' + grid + '</div>' + body
@@ -432,6 +445,395 @@
     var h = location.hash || '';
     if (h.indexOf('#cal-') === 0 || h.indexOf('#cf-') === 0 || h === '#schedule') setView('list');
   });
+
+  /* 10) 🔍 지수·종목·ETF 상세페이지 (#detail/stock|etf|index/{code}) */
+  var DET = DATA.details || {};
+  var dRoot = document.getElementById('detailRoot');
+  var dMain = document.getElementById('main');
+
+  function won(v, d) {
+    if (v == null || v === '') return '—';
+    return Number(v).toLocaleString('ko-KR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
+  }
+  function pct2(v) {
+    if (v == null) return '—';
+    return (v > 0 ? '+' : (v < 0 ? '−' : '')) + Math.abs(v).toFixed(2) + '%';
+  }
+  function pp(v) {
+    if (v == null) return '—';
+    return (v > 0 ? '+' : (v < 0 ? '−' : '')) + Math.abs(v).toFixed(2) + 'p';
+  }
+  function eok(v) {
+    if (v == null) return '—';
+    var a = Math.abs(Number(v));
+    var sign = v < 0 ? '−' : (v > 0 ? '+' : '');
+    if (a >= 9999.5) {
+      var jo = Math.round(a / 10000);
+      return sign + jo + '조';
+    }
+    return sign + Math.round(a).toLocaleString('ko-KR') + '억';
+  }
+  function sparkPath(closes, w, h) {
+    if (!closes || closes.length < 2) return '';
+    var mn = Math.min.apply(null, closes), mx = Math.max.apply(null, closes);
+    var span = (mx - mn) || 1;
+    var pts = closes.map(function (c, i) {
+      var x = (i / (closes.length - 1)) * w;
+      var y = h - ((c - mn) / span) * (h - 6) - 3;
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    });
+    return '<svg class="d-spark" viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" aria-hidden="true">'
+      + '<polyline points="' + pts.join(' ') + '" fill="none" stroke="currentColor" stroke-width="1.8" '
+      + 'stroke-linejoin="round" stroke-linecap="round"/></svg>';
+  }
+  function kv(label, value, sub) {
+    return '<div><span>' + esc(label) + '</span><b>' + value + '</b>' + (sub ? '<em>' + esc(sub) + '</em>' : '') + '</div>';
+  }
+  function calcBox(entry, stop, atrPct, atrStop, note) {
+    if (!entry || !stop) return '';
+    return '<div class="poscalc" data-entry="' + entry + '" data-stop="' + stop + '" data-price="' + entry + '">'
+      + '<div class="pc-head"><b>포지션 계산기</b><span>백테스트 기준 · 권유 아님</span></div>'
+      + '<div class="pc-fields">'
+      + '<label>총 투자금<input type="text" inputmode="numeric" class="pc-cap" value="10,000,000" aria-label="총 투자금"></label>'
+      + '<label>1회 허용 손실<input type="number" step="0.1" min="0.1" max="10" class="pc-risk" value="0.5" aria-label="1회 허용 손실률">%</label>'
+      + '</div>'
+      + '<div class="pc-out" aria-live="polite"><span>매수 가능 수량 <b class="pc-qty">—</b></span>'
+      + '<span>예상 손실 <b class="pc-loss">—</b></span><span>주문 금액 <b class="pc-amt">—</b></span>'
+      + '<span>총 투자금 대비 <b class="pc-w">—</b></span></div>'
+      + (atrPct ? '<span class="pc-note">20일 ATR ' + atrPct.toFixed(2) + '% · 변동성 기준 손절 참고폭 ' + pct2(atrStop) + '</span>' : '')
+      + '<p class="pc-note">' + (note || ('기준 ' + won(entry) + '원 · 무효 ' + won(stop) + '원. 허용 손실을 넘지 않는 수량만 계산합니다(수수료·세금 제외).')) + '</p>'
+      + '</div>';
+  }
+
+  function bindCalc(root) {
+    Array.prototype.forEach.call(root.querySelectorAll('.poscalc'), function (box) {
+      var entry = Number(box.getAttribute('data-entry')) || 0;
+      var stop = Number(box.getAttribute('data-stop')) || 0;
+      var capEl = box.querySelector('.pc-cap');
+      var riskEl = box.querySelector('.pc-risk');
+      var qtyEl = box.querySelector('.pc-qty');
+      var lossEl = box.querySelector('.pc-loss');
+      var amtEl = box.querySelector('.pc-amt');
+      var wEl = box.querySelector('.pc-w');
+      function num(sel) {
+        var raw = String(sel.value || '').replace(/[^\d.]/g, '');
+        return Number(raw) || 0;
+      }
+      function run() {
+        var cap = num(capEl);
+        var riskPct = num(riskEl);
+        if (!entry || !stop || stop >= entry || !cap || !riskPct) {
+          qtyEl.textContent = '—'; lossEl.textContent = '—'; amtEl.textContent = '—'; wEl.textContent = '—';
+          return;
+        }
+        var perShare = entry - stop;
+        var budget = cap * riskPct / 100;
+        var qtyByRisk = Math.floor(budget / perShare);
+        var qtyByCap = Math.floor(cap / entry);
+        var qty = Math.max(0, Math.min(qtyByRisk, qtyByCap));
+        var loss = qty * perShare;
+        var amt = qty * entry;
+        qtyEl.textContent = qty.toLocaleString('ko-KR') + '주';
+        lossEl.textContent = won(Math.round(loss)) + '원';
+        amtEl.textContent = won(Math.round(amt)) + '원';
+        wEl.textContent = cap ? ((amt / cap) * 100).toFixed(1) + '%' : '—';
+        var lim = (qtyByRisk < qtyByCap) ? '손실 한도 기준' : '투자금 한도 기준';
+        qtyEl.setAttribute('title', lim);
+      }
+      capEl.addEventListener('input', run);
+      capEl.addEventListener('focus', function () { capEl.value = String(num(capEl) || ''); });
+      capEl.addEventListener('blur', function () { capEl.value = won(num(capEl)); run(); });
+      riskEl.addEventListener('input', run);
+      run();
+    });
+  }
+
+  function detailNotFound(kind, code) {
+    return '<div class="wrap d-wrap"><div class="d-top"><button class="d-back" type="button" data-dback="1">← 돌아가기</button>'
+      + '<div class="d-title"><h2>자료 없음<span class="code">' + esc(kind) + '/' + esc(code) + '</span></h2>'
+      + '<div class="d-sub">이 항목의 상세 데이터가 아직 없습니다. 검색창에서 다른 종목을 찾아보세요.</div></div></div></div>';
+  }
+
+  function renderStock(d) {
+    var h = '<div class="wrap d-wrap"><div class="d-top">'
+      + '<button class="d-back" type="button" data-dback="1">← 돌아가기</button>'
+      + '<div class="d-title"><h2>' + esc(d.n) + '<span class="code">' + esc(d.c) + '</span></h2>'
+      + '<div class="d-sub">' + esc(d.m) + (d.sec ? ' · ' + esc(d.sec) : '') + (d.d ? ' · ' + esc(d.d) + ' 기준' : '') + '</div></div>'
+      + '<div class="d-price"><b>' + (d.px != null ? won(d.px) : '—') + '</b>'
+      + '<span class="' + cls(d.chg) + '">' + pct2(d.chg) + '</span></div></div>'
+      + '<div class="d-grid">';
+
+    /* 시세 */
+    h += '<section class="card d-card"><h3>시세·등락 <em>최근 20거래일</em></h3>'
+      + '<div class="' + cls(d.chg) + '">' + sparkPath(d.series || [], 320, 56) + '</div>'
+      + '<div class="d-kv">'
+      + kv('현재가', d.px != null ? won(d.px) + '원' : '—', d.d ? d.d + ' 종가' : '')
+      + kv('전일 대비', '<span class="' + cls(d.chg) + '">' + pct2(d.chg) + '</span>', '')
+      + kv('52주 밴드', (d.fund && d.fund.low52 ? won(d.fund.low52) + '~' + won(d.fund.high52) : '—'), '')
+      + '</div></section>';
+
+    /* 펀더멘털 */
+    var f = d.fund;
+    if (f) {
+      h += '<section class="card d-card"><h3>펀더멘털 <em>공개 재무·컨센서스 ' + esc(f.date || '') + '</em></h3><div class="d-kv">'
+        + kv('PER', f.per != null ? f.per.toFixed(1) + '배' : '—', f.cns_per != null ? '추정 ' + f.cns_per.toFixed(1) + '배' : '')
+        + kv('PBR', f.pbr != null ? f.pbr.toFixed(2) + '배' : '—', f.bps != null ? 'BPS ' + won(f.bps) : '')
+        + kv('ROE', f.roe_annual != null ? f.roe_annual.toFixed(1) + '%' : (f.roe != null ? f.roe.toFixed(1) + '%' : '—'), '연환산')
+        + kv('배당수익률', f.div_yield != null ? f.div_yield.toFixed(2) + '%' : '—', f.dps != null ? 'DPS ' + won(f.dps) + '원' : '')
+        + kv('컨센서스 목표', f.target != null ? won(f.target) + '원' : '—', f.upside != null ? pct2(f.upside) : '')
+        + kv('투자의견', f.rec_mean != null ? f.rec_mean.toFixed(1) + ' / 5' : '—', '5=매수 우위')
+        + kv('영업이익(당기)', f.op_annual != null ? won(f.op_annual) + '억' : '—', f.op_annual_yoy != null ? pct2(f.op_annual_yoy) + ' YoY' : '')
+        + kv('영업이익(분기)', f.op_q != null ? won(f.op_q) + '억' : '—', f.op_q_qoq != null ? pct2(f.op_q_qoq) + ' QoQ' : '')
+        + kv('실적 모멘텀', f.momentum != null ? f.momentum.toFixed(0) + '점' : '—', f.fiscal_a || '')
+        + '</div></section>';
+    }
+
+    /* ATR · 포지션 계산기 */
+    var a = d.atr;
+    h += '<section class="card d-card wide"><h3>20일 ATR · 포지션 계산기 <em>변동성 기준</em></h3>';
+    if (a) {
+      h += '<div class="d-kv">'
+        + kv('ATR20', a.atr20 != null ? won(a.atr20) + '원' : '—', a.atr_pct != null ? a.atr_pct.toFixed(2) + '%' : '')
+        + kv('변동성 국면', a.regime || '—', a.rank20 != null ? '20일 백분위 ' + a.rank20.toFixed(0) : '')
+        + kv('손절 참고밴드', a.stop_band != null ? won(a.stop_band) : '—', a.stop_dist != null ? pct2(a.stop_dist) + ' (1.5×ATR)' : '')
+        + kv('목표 참고밴드', a.target_band != null ? won(a.target_band) : '—', a.target_dist != null ? pct2(a.target_dist) + ' (2.5×ATR)' : '')
+        + kv('손익비', a.rr != null ? a.rr.toFixed(2) : '—', '밴드 기준')
+        + kv('산출 근거', a.bars != null ? a.bars + '봉' : '—', a.date || '')
+        + '</div>';
+    } else {
+      h += '<p class="d-hint">ATR 데이터가 아직 없습니다.</p>';
+    }
+    var plan = d.plan || {};
+    h += calcBox(plan.entry || d.px, plan.stop || (a && a.stop_band), a && a.atr_pct, a && a.stop_dist,
+      d.pick ? ('타점 카드 기준 · 1차 관찰 ' + won(plan.entry) + '원 · 무효 ' + won(plan.stop) + '원') : '')
+      + '</section>';
+
+    /* 수급·유통비율 */
+    var fl = d.float || {}, fm = d.fm || {}, sh = d.sh || {};
+    h += '<section class="card d-card"><h3>수급 · 유통비율 <em>공개 지분 기준</em></h3><div class="d-kv">'
+      + kv('외인 지분율', fm.fr != null ? fm.fr.toFixed(2) + '%' : '—', fm.frd != null ? pp(fm.frd) + ' 전일' : '')
+      + kv('유통비율', fl.float != null ? fl.float.toFixed(1) + '%' : '—', '주요주주·자사주 제외')
+      + kv('내부자·주요주주', fl.insider != null ? fl.insider.toFixed(1) + '%' : '—', fl.disclosed != null ? '공개 지분 ' + fl.disclosed.toFixed(1) + '%' : '')
+      + kv('회전율', fm.turn != null ? fm.turn.toFixed(1) + '%' : '—', '유통주식수 대비')
+      + kv('품절 점수', fm.sq != null ? fm.sq.toFixed(1) : '—', '유통물량 잠김 정도')
+      + kv('상장주식수', fl.shares != null ? won(fl.shares) + '주' : '—', '')
+      + '</div></section>';
+
+    /* 공매도 5/20일 */
+    h += '<section class="card d-card"><h3>공매도 5·20일 추이 <em>' + esc(sh.date || '') + ' 기준</em></h3>'
+      + '<div class="d-kv">'
+      + kv('공매도 비중', sh.ratio != null ? sh.ratio.toFixed(2) + '%' : '—', '거래량 기준')
+      + kv('5일 변화', '<span class="' + cls(sh.chg5) + '">' + pp(sh.chg5) + '</span>', '비중 증감')
+      + kv('20일 변화', '<span class="' + cls(sh.chg20) + '">' + pp(sh.chg20) + '</span>', '비중 증감')
+      + kv('잔량 5일', sh.balance5 != null ? pct2(sh.balance5) : '—', '집계 ' + (sh.lag != null ? sh.lag + '일 지연' : '—'))
+      + kv('신호', ({ STRONG_PRESSURE: '압력 강화', PRESSURE: '압력', COVER: '숏커버', STRONG_COVER: '숏커버 강함', NEUTRAL: '중립' })[sh.signal] || '—', '')
+      + kv('현재 비중 순위', sh.rank20 != null ? sh.rank20.toFixed(0) + ' 백분위' : '—', '최근 20관측 중')
+      + '</div><p class="d-hint">비중이 줄면 숏커버(매수 여력), 늘면 공매도 압력으로 읽습니다. 잔량은 공개분·2~3거래일 지연입니다.</p></section>';
+
+    /* 타임라인 */
+    var tl = (DATA.timelines || {})[d.c];
+    if (tl && (tl.points || []).length) {
+      h += '<section class="card d-card wide"><h3>변곡점 타임라인 <em>' + esc(tl.start || '') + ' ~ ' + esc(tl.end || '') + '</em></h3>'
+        + '<table class="d-tbl"><thead><tr><th>날짜</th><th>등락</th><th>구분</th><th>같은 날 재료</th></tr></thead><tbody>';
+      (tl.points || []).forEach(function (pt) {
+        h += '<tr><td>' + esc(pt.date) + '</td><td class="num ' + cls(pt.chg) + '">' + pct2(pt.chg) + '</td>'
+          + '<td>' + esc(pt.kind) + '</td><td>' + esc((pt.cause || {}).text || '') + '</td></tr>';
+      });
+      h += '</tbody></table>';
+      if ((tl.common || []).length) {
+        h += '<div class="d-hint">같은 기간 글로벌 이벤트(발표 시차 보정 · 다음 한국 거래일 기준): '
+          + (tl.common || []).map(function (c) { return esc(c.date + ' ' + c.label); }).join(' / ') + '</div>';
+      }
+      if ((tl.future || []).length) {
+        h += '<div class="d-hint">다가오는 일정: '
+          + (tl.future || []).map(function (e) { return esc(e.date + ' ' + (e.time || '') + ' ' + e.name); }).join(' / ') + '</div>';
+      }
+      h += '</section>';
+    }
+
+    /* 연관 ETF */
+    if ((d.etfs || []).length) {
+      h += '<section class="card d-card wide"><h3>연관 ETF <em>구성 비중 상위</em></h3><div class="d-chips">';
+      d.etfs.forEach(function (e) {
+        h += '<a class="d-chip" href="#detail/etf/' + esc(e[0]) + '"><b>' + esc(e[1]) + '</b>'
+          + '<span>' + (e[2] != null ? e[2].toFixed(2) + '%' : '') + '</span>'
+          + (e[3] ? '<em class="' + cls(e[3]) + '">' + pp(e[3]) + '</em>' : '') + '</a>';
+      });
+      h += '</div></section>';
+    }
+    h += '</div></div>';
+    return h;
+  }
+
+  function renderEtf(d) {
+    var h = '<div class="wrap d-wrap"><div class="d-top">'
+      + '<button class="d-back" type="button" data-dback="1">← 돌아가기</button>'
+      + '<div class="d-title"><h2>' + esc(d.n) + '<span class="code">' + esc(d.c) + '</span></h2>'
+      + '<div class="d-sub">ETF · ' + esc(d.issuer || '') + (d.d ? ' · ' + esc(d.d) + ' 기준' : '') + '</div></div>'
+      + '<div class="d-price"><b>' + (d.px != null ? won(d.px) : '—') + '</b>'
+      + '<span class="' + cls(d.chg) + '">' + pct2(d.chg) + '</span></div></div><div class="d-grid">';
+
+    h += '<section class="card d-card"><h3>시세 · NAV <em>괴리율 포함</em></h3><div class="d-kv">'
+      + kv('현재가', d.px != null ? won(d.px) + '원' : '—', '')
+      + kv('NAV', (d.nav || d.inav) != null ? won(d.nav || d.inav) : '—', d.inav && d.nav && d.inav !== d.nav ? 'iNAV ' + won(d.inav) : '')
+      + kv('괴리율', d.dev != null ? pct2(d.dev) : '—', 'NAV 대비')
+      + kv('거래대금', d.val != null ? won(d.val) + '억' : '—', '당일')
+      + kv('순자산', d.aum != null ? won(d.aum) + '억' : '—', '')
+      + kv('구성종목', d.holdings != null ? d.holdings + '종' : '—', d.top10 != null ? '상위10 ' + d.top10.toFixed(1) + '%' : '')
+      + '</div></section>';
+
+    h += '<section class="card d-card"><h3>수익률 · 비용 · 분배</h3><div class="d-kv">'
+      + kv('1개월', '<span class="' + cls(d.r1m) + '">' + pct2(d.r1m) + '</span>', '')
+      + kv('3개월', '<span class="' + cls(d.r3m) + '">' + pct2(d.r3m) + '</span>', '')
+      + kv('1년', '<span class="' + cls(d.r1y) + '">' + pct2(d.r1y) + '</span>', '')
+      + kv('총보수', d.ter != null ? d.ter.toFixed(2) + '%' : '—', '연 기준')
+      + kv('분배율(TTM)', d.div != null ? d.div.toFixed(2) + '%' : '—', d.cycle || '')
+      + kv('최근 분배금', d.last_div != null ? won(d.last_div) + '원' : '—', d.ex_date ? '배당락 ' + d.ex_date : '')
+      + '</div><p class="d-hint">분배율이 높아도 그만큼 주가가 빠지면 남는 수익이 없습니다. 위 1·3개월 수익률과 함께 보세요.</p></section>';
+
+    var tops = d.tops || [];
+    h += '<section class="card d-card wide"><h3>구성종목 TOP 10 <em>비중 · 전일비 변동</em></h3>';
+    if (tops.length) {
+      h += '<table class="d-tbl"><thead><tr><th>#</th><th>종목</th><th>비중</th><th>전일비</th><th>현재가</th><th>등락</th></tr></thead><tbody>';
+      tops.slice(0, 10).forEach(function (t, i) {
+        h += '<tr><td>' + (i + 1) + '</td>'
+          + '<td>' + (t.c ? '<a class="row-link" href="#detail/stock/' + esc(t.c) + '">' + esc(t.n) + '</a>' : esc(t.n)) + '</td>'
+          + '<td class="num">' + (t.w != null ? t.w.toFixed(2) + '%' : '—') + '</td>'
+          + '<td class="num ' + cls(t.d) + '">' + (t.d ? pp(t.d) : '—') + '</td>'
+          + '<td class="num">' + (t.px != null ? won(t.px) : '—') + '</td>'
+          + '<td class="num ' + cls(t.chg) + '">' + pct2(t.chg) + '</td></tr>';
+      });
+      h += '</tbody></table>';
+    } else {
+      h += '<p class="d-hint">구성종목 스냅샷이 없습니다.</p>';
+    }
+    h += '</section>';
+
+    if ((d.sectors || []).length) {
+      h += '<section class="card d-card wide"><h3>연관 섹터 흐름 <em>' + esc(d.flow_date || '') + '</em></h3><div class="d-chips">';
+      d.sectors.forEach(function (x) {
+        h += '<a class="d-chip" href="#sectors"><b>' + esc(x.n) + '</b>'
+          + (x.chg != null ? '<span class="' + cls(x.chg) + '">' + pct2(x.chg) + '</span>' : '')
+          + (x.score != null ? '<em>자금점수 ' + x.score.toFixed(0) + '</em>' : '') + picta(x.state) + '</a>';
+      });
+      h += '</div><p class="d-hint">이 ETF가 담는 업종의 당일 자금 흐름입니다. 칩을 누르면 섹터 레이더로 이동합니다.</p></section>';
+    }
+    h += '</div></div>';
+    return h;
+  }
+
+  function picta(state) {
+    return state ? '<em>' + esc(state) + '</em>' : '';
+  }
+
+  function renderIndex(d) {
+    var up = d.up || 0, dn = d.down || 0, tot = up + dn;
+    var upw = tot ? (up / tot * 100) : 0;
+    var h = '<div class="wrap d-wrap"><div class="d-top">'
+      + '<button class="d-back" type="button" data-dback="1">← 돌아가기</button>'
+      + '<div class="d-title"><h2>' + esc(d.n) + '<span class="code">' + esc(d.c) + '</span></h2>'
+      + '<div class="d-sub">지수 · ' + esc(d.d) + ' 기준</div></div>'
+      + '<div class="d-price"><b>' + won(d.px, 2) + '</b><span class="' + cls(d.chg) + '">' + pct2(d.chg) + '</span></div></div>'
+      + '<div class="d-grid">';
+
+    h += '<section class="card d-card"><h3>시장 내부 강도 <em>시장 폭</em></h3><div class="d-kv">'
+      + kv('상승 종목', up.toLocaleString('ko-KR'), '')
+      + kv('하락 종목', dn.toLocaleString('ko-KR'), '')
+      + kv('상승 비율', upw.toFixed(1) + '%', '상승÷(상승+하락)')
+      + '</div><div class="int-bar"><i style="width:' + upw.toFixed(1) + '%"></i></div>'
+      + '<p class="d-hint">지수 등락이 커도 상승 종목이 적으면 좁은 상승입니다. 하루 수치보다 3~5일 추세로 읽으세요.</p></section>';
+
+    h += '<section class="card d-card"><h3>투자자별 순매수 <em>당일 확정</em></h3><div class="d-kv">'
+      + kv('외국인', '<span class="' + cls(d.f) + '">' + eok(d.f) + '</span>', '')
+      + kv('기관', '<span class="' + cls(d.i) + '">' + eok(d.i) + '</span>', '')
+      + kv('개인', '<span class="' + cls(d.p) + '">' + eok(d.p) + '</span>', '')
+      + '</div></section>';
+
+    h += '<section class="card d-card wide"><h3>최근 5거래일 <em>종가 · 폭 · 수급</em></h3>'
+      + '<table class="d-tbl"><thead><tr><th>날짜</th><th>종가</th><th>등락</th><th>상승/하락</th><th>외국인</th><th>기관</th></tr></thead><tbody>';
+    (d.series || []).slice().reverse().forEach(function (r) {
+      h += '<tr><td>' + esc(r.d) + '</td><td class="num">' + won(r.c, 2) + '</td>'
+        + '<td class="num ' + cls(r.chg) + '">' + pct2(r.chg) + '</td>'
+        + '<td class="num">' + (r.up != null ? r.up + '/' + r.down : '—') + '</td>'
+        + '<td class="num ' + cls(r.f) + '">' + eok(r.f) + '</td>'
+        + '<td class="num ' + cls(r.i) + '">' + eok(r.i) + '</td></tr>';
+    });
+    h += '</tbody></table></section>';
+
+    /* 글로벌 릴레이 내 위치 · 거시 연계 */
+    var reg = null;
+    ((DATA.relay || {}).regions || []).forEach(function (r) {
+      (r.items || []).forEach(function (it) {
+        if (reg) return;
+        var nm = String(it.name || '');
+        if ((d.c === 'KOSPI' && nm.indexOf('코스피') === 0) || (d.c === 'KOSDAQ' && nm.indexOf('코스닥') === 0)) reg = { region: r, item: it };
+      });
+    });
+    var ls = DATA.longshort || {};
+    var wh = (DATA.whale || {}).net || {};
+    h += '<section class="card d-card wide"><h3>글로벌 릴레이 내 위치 · 거시 연계</h3><div class="d-kv">'
+      + kv('아시아 평균', reg ? '<span class="' + cls(reg.region.avg_pct) + '">' + pct2(reg.region.avg_pct) + '</span>' : '—', reg ? reg.region.state || '' : '')
+      + kv('매크로 롱:숏', (ls.long != null ? ls.long + ' : ' + ls.short : '—'), ls.regime || '')
+      + kv('큰손 순유동성', wh.value != null ? won(wh.value) + 'bn$' : '—', wh.chg4w != null ? '4주 ' + (wh.chg4w > 0 ? '+' : '') + won(wh.chg4w) + 'bn$' : '')
+      + '</div><div class="d-chips" style="margin-top:10px">'
+      + '<a class="d-chip" href="#global">🌍 글로벌 릴레이</a><a class="d-chip" href="#top">롱·숏 게이지</a>'
+      + '<a class="d-chip" href="#sectors">섹터 레이더</a><a class="d-chip" href="#scorecard">성적표</a></div></section>';
+
+    h += '</div></div>';
+    return h;
+  }
+
+  function openDetail(kind, code) {
+    if (!dRoot) return;
+    if (typeof modalOpen === 'function' && modalOpen()) closeModal();
+    var box, html;
+    if (kind === 'stock') { box = (DET.stocks || {})[code]; html = box ? renderStock(box) : detailNotFound(kind, code); }
+    else if (kind === 'etf') { box = (DET.etfs || {})[code]; html = box ? renderEtf(box) : detailNotFound(kind, code); }
+    else { box = (DET.indices || {})[code]; html = box ? renderIndex(box) : detailNotFound(kind, code); }
+    dRoot.innerHTML = html;
+    dRoot.hidden = false;
+    document.body.classList.add('detail-open');
+    bindCalc(dRoot);
+    var back = dRoot.querySelector('[data-dback]');
+    if (back) back.addEventListener('click', goBack);
+    window.scrollTo(0, 0);
+    var ttl = box ? (box.n || code) : code;
+    document.title = ttl + ' — ' + (DATA.meta || {}).site;
+  }
+
+  function closeDetail() {
+    if (!dRoot) return;
+    if (!dRoot.hidden) {
+      dRoot.hidden = true;
+      dRoot.innerHTML = '';
+      document.body.classList.remove('detail-open');
+      document.title = ((DATA.meta || {}).site || '세상을비틀다') + ' — 시장 레이더';
+    }
+  }
+
+  function goBack() {
+    // 상세로 들어올 때 해시가 쌓였으면 뒤로, 바로 열었으면 목록으로
+    if (window.history.length > 1) {
+      window.history.back();
+      setTimeout(function () {
+        if (location.hash.indexOf('#detail/') === 0) { location.hash = '#top'; }
+      }, 220);
+    } else {
+      location.hash = '#top';
+    }
+  }
+
+  function routeDetail() {
+    var h = '';
+    try { h = decodeURIComponent((location.hash || '').replace(/^#/, '')); } catch (err) { h = ''; }
+    var m = h.match(/^detail\/(stock|etf|index)\/([A-Za-z0-9_-]+)$/);
+    if (m) { openDetail(m[1], m[2]); return true; }
+    closeDetail();
+    return false;
+  }
+  window.addEventListener('hashchange', routeDetail);
+  routeDetail();
+  bindCalc(document);
 
   /* 7) PWA 서비스워커(http/https에서만 — file:// 미리보기에서는 건너뜀) */
   if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
