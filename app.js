@@ -468,8 +468,9 @@
     var a = Math.abs(Number(v));
     var sign = v < 0 ? '−' : (v > 0 ? '+' : '');
     if (a >= 9999.5) {
-      var jo = Math.round(a / 10000);
-      return sign + jo + '조';
+      var jo = Math.floor(a / 10000);
+      var rest = Math.round(a - jo * 10000);
+      return sign + jo + '조' + (rest ? ' ' + rest.toLocaleString('ko-KR') + '억' : '');
     }
     return sign + Math.round(a).toLocaleString('ko-KR') + '억';
   }
