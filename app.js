@@ -3,6 +3,15 @@
 (function () {
   'use strict';
 
+  /* 0) 오류 기록기 — 화면이 조용히 깨지지 않았는지 검증할 때 읽는다(콘솔 0건 확인용) */
+  window.__errs = window.__errs || [];
+  window.addEventListener('error', function (ev) {
+    window.__errs.push(String((ev && ev.message) || (ev && ev.error) || 'error'));
+  });
+  window.addEventListener('unhandledrejection', function (ev) {
+    window.__errs.push('promise: ' + String((ev && ev.reason) || 'rejected'));
+  });
+
   /* 1) 테마: 저장값 → 없으면 OS 설정 */
   var root = document.documentElement;
   var btn = document.getElementById('themeBtn');
