@@ -583,7 +583,13 @@
       + kv('현재가', d.px != null ? won(d.px) + '원' : '—', d.d ? d.d + ' 종가' : '')
       + kv('전일 대비', '<span class="' + cls(d.chg) + '">' + pct2(d.chg) + '</span>', '')
       + kv('52주 밴드', (d.fund && d.fund.low52 ? won(d.fund.low52) + '~' + won(d.fund.high52) : '—'), '')
-      + '</div></section>';
+      + '</div>'
+      + '<p class="d-hint">' + (function () {
+          var s2 = d.series || [];
+          if (s2.length < 2) return '최근 20거래일 종가 흐름입니다.';
+          var mn = Math.min.apply(null, s2), mx = Math.max.apply(null, s2);
+          return '최근 ' + s2.length + '거래일 종가 흐름 — 최저 ' + won(mn) + '원 · 최고 ' + won(mx) + '원';
+        })() + '</p></section>';
 
     /* 펀더멘털 */
     var f = d.fund;
@@ -625,9 +631,11 @@
     var fl = d.float || {}, fm = d.fm || {}, sh = d.sh || {};
     h += '<section class="card d-card"><h3>수급 · 유통비율 <em>공개 지분 기준</em></h3><div class="d-kv">'
       + kv('외인 지분율', fm.fr != null ? fm.fr.toFixed(2) + '%' : '—', fm.frd != null ? pp(fm.frd) + ' 전일' : '')
-      + kv('유통비율', fl.float != null ? fl.float.toFixed(1) + '%' : '—', '주요주주·자사주 제외')
+      + kv('유통비율', fl.float != null ? fl.float.toFixed(1) + '%' : '—',
+           fl.float != null ? '주요주주·자사주 제외' : '공개 지분 없음')
       + kv('내부자·주요주주', fl.insider != null ? fl.insider.toFixed(1) + '%' : '—', fl.disclosed != null ? '공개 지분 ' + fl.disclosed.toFixed(1) + '%' : '')
-      + kv('회전율', fm.turn != null ? fm.turn.toFixed(1) + '%' : '—', '유통주식수 대비')
+      + kv('회전율', fm.turn != null ? fm.turn.toFixed(1) + '%' : '—',
+           fm.turn != null ? '유통주식수 대비' : '수급 집계 전')
       + kv('품절 점수', fm.sq != null ? fm.sq.toFixed(1) : '—', '유통물량 잠김 정도')
       + kv('상장주식수', fl.shares != null ? won(fl.shares) + '주' : '—', '')
       + '</div></section>';
@@ -689,7 +697,7 @@
     h += '<section class="card d-card"><h3>시세 · NAV <em>괴리율 포함</em></h3><div class="d-kv">'
       + kv('현재가', d.px != null ? won(d.px) + '원' : '—', '')
       + kv('NAV', (d.nav || d.inav) != null ? won(d.nav || d.inav) : '—', d.inav && d.nav && d.inav !== d.nav ? 'iNAV ' + won(d.inav) : '')
-      + kv('괴리율', d.dev != null ? pct2(d.dev) : '—', 'NAV 대비')
+      + kv('괴리율', d.dev != null ? pct2(d.dev) : '—', '동시호가 iNAV 대비')
       + kv('거래대금', d.val != null ? won(d.val) + '억' : '—', '당일')
       + kv('순자산', d.aum != null ? won(d.aum) + '억' : '—', '')
       + kv('구성종목', d.holdings != null ? d.holdings + '종' : '—', d.top10 != null ? '상위10 ' + d.top10.toFixed(1) + '%' : '')
@@ -702,7 +710,8 @@
       + kv('총보수', d.ter != null ? d.ter.toFixed(2) + '%' : '—', '연 기준')
       + kv('분배율(TTM)', d.div != null ? d.div.toFixed(2) + '%' : '—', d.cycle || '')
       + kv('최근 분배금', d.last_div != null ? won(d.last_div) + '원' : '—', d.ex_date ? '배당락 ' + d.ex_date : '')
-      + '</div><p class="d-hint">분배율이 높아도 그만큼 주가가 빠지면 남는 수익이 없습니다. 위 1·3개월 수익률과 함께 보세요.</p></section>';
+      + '</div><p class="d-hint">분배율이 높아도 그만큼 주가가 빠지면 남는 수익이 없습니다. 위 1·3개월 수익률과 함께 보세요.
+        NAV는 기준일이 하루 전일 수 있어, 현재가와 NAV의 차이는 괴리율이 아닙니다(괴리율은 iNAV 기준).</p></section>';
 
     var tops = d.tops || [];
     h += '<section class="card d-card wide"><h3>구성종목 TOP 10 <em>비중 · 전일비 변동</em></h3>';
