@@ -573,6 +573,24 @@ html[data-theme="light"] .chip.warn{color:#7a5200; background:rgba(183,121,31,.1
 .sched-what{line-height:1.5}
 .sched-what .n-src{margin-left:6px}
 .sched .n-tags{margin-top:2px}
+/* ── 보조 시장 신호 ──────────────────────────────── */
+.extra{margin-bottom:16px; padding:16px 18px}
+.ex-grid{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-top:10px}
+.ex-cell{border:1px solid var(--line-soft); border-radius:10px; padding:9px 10px;
+  background:var(--surface-2); display:grid; gap:2px}
+.ex-cell span{font-size:10.5px; color:var(--muted); font-weight:700}
+.ex-cell b{font-size:17px; font-variant-numeric:tabular-nums}
+.ex-cell em{font-style:normal; font-size:9.5px; color:var(--muted)}
+.ex-cell small{font-size:9.5px; color:color-mix(in srgb,var(--muted) 75%,transparent); line-height:1.45}
+.ex-chips{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:10px}
+.ex-label{font-size:9.5px; letter-spacing:.12em; color:var(--muted); font-weight:800}
+.ex-chip{display:inline-flex; align-items:center; gap:5px; font-size:10.5px; color:var(--muted);
+  border:1px solid var(--line); border-radius:999px; padding:3px 8px}
+.ex-chip b{color:var(--text); font-variant-numeric:tabular-nums}
+.ex-chip em{font-style:normal; font-weight:700}
+.ex-chip small{font-size:9px; opacity:.7}
+.tbl .known{display:inline-block; font-style:normal; margin-left:4px; font-size:8.5px; color:var(--accent);
+  border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line)); padding:0 4px; border-radius:4px}
 .tl-axis{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:10px; font-size:10.5px}
 .ax-label{color:var(--muted); font-weight:800; letter-spacing:.06em}
 .ax-chip{border:1px solid var(--line); border-radius:999px; padding:3px 8px; color:var(--muted)}
@@ -646,6 +664,8 @@ html[data-theme="light"] .chip.warn{color:#7a5200; background:rgba(183,121,31,.1
   .plan .cell:last-child{grid-column:1 / -1}
   .bar-row{grid-template-columns:76px minmax(0,1fr) 54px; row-gap:2px}
   .bar-meta{grid-column:2 / -1; text-align:left; font-size:10px}
+  .ex-grid{grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px}
+  .ex-cell b{font-size:15px}
   .flow-grid{grid-template-columns:1fr}
   .tbl{min-width:0; font-size:11.5px}
   .tbl th,.tbl td{padding:6px 4px}
