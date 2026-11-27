@@ -399,8 +399,9 @@
     if ((d.macro || []).length) {
       body += '<div class="sm-row"><span>지표</span><div>'
         + d.macro.map(function (m) {
-          var rng = (m.l != null && m.h != null) ? '예상 ' + m.l + '~' + m.h + ' · ' : '';
-          return esc(m.n) + ' — ' + rng + '실제 ' + (m.a != null ? m.a : '—')
+          var rng = (m.l != null && m.h != null) ? '예상 ' + comma(m.l, Math.abs(m.l) >= 1000 ? 0 : 2)
+            + '~' + comma(m.h, Math.abs(m.h) >= 1000 ? 0 : 2) + ' · ' : '';
+          return esc(m.n) + ' — ' + rng + '실제 ' + (m.a != null ? comma(m.a, Math.abs(m.a) >= 1000 ? 0 : 2) : '—')
             + ' <b class="' + (m.hit ? 'up' : 'down') + '">' + (m.hit ? '범위 안' : '범위 밖') + '</b>';
         }).join('<br>') + '</div></div>';
     }
