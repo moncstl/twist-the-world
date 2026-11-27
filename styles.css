@@ -546,7 +546,7 @@ html[data-theme="light"] .chip.warn{color:#7a5200; background:rgba(183,121,31,.1
 .tlp-imp{margin-left:auto; font-size:10.5px; font-weight:750; white-space:nowrap; text-align:right}
 .tlp-imp em{display:inline; font-style:normal; font-size:9px; color:var(--muted); font-weight:600; margin-left:5px}
 .tlp-cause{margin-top:4px; font-size:11.5px; line-height:1.55}
-.tlp-cause .n-src{margin-left:6px}
+.tlp-cause .n-src{margin-left:6px; border:1px solid var(--line); padding:0 5px; border-radius:4px}
 .tl-news{margin-top:5px; display:grid; gap:4px}
 .tl-news li{display:flex; flex-wrap:wrap; gap:6px; align-items:baseline; font-size:11px;
   padding:5px 8px; border-radius:8px; background:color-mix(in srgb,var(--surface) 58%,transparent)}
