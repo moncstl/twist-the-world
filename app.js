@@ -655,12 +655,12 @@
     var tl = (DATA.timelines || {})[d.c];
     if (tl && (tl.points || []).length) {
       h += '<section class="card d-card wide"><h3>변곡점 타임라인 <em>' + esc(tl.start || '') + ' ~ ' + esc(tl.end || '') + '</em></h3>'
-        + '<table class="d-tbl"><thead><tr><th>날짜</th><th>등락</th><th>구분</th><th>같은 날 재료</th></tr></thead><tbody>';
+        + '<div class="tbl-wrap"><table class="d-tbl"><thead><tr><th>날짜</th><th>등락</th><th>구분</th><th>같은 날 재료</th></tr></thead><tbody>';
       (tl.points || []).forEach(function (pt) {
         h += '<tr><td>' + esc(pt.date) + '</td><td class="num ' + cls(pt.chg) + '">' + pct2(pt.chg) + '</td>'
           + '<td>' + esc(pt.kind) + '</td><td>' + esc((pt.cause || {}).text || '') + '</td></tr>';
       });
-      h += '</tbody></table>';
+      h += '</tbody></table></div>';
       if ((tl.common || []).length) {
         h += '<div class="d-hint">같은 기간 글로벌 이벤트(발표 시차 보정 · 다음 한국 거래일 기준): '
           + (tl.common || []).map(function (c) { return esc(c.date + ' ' + c.label); }).join(' / ') + '</div>';
@@ -715,7 +715,7 @@
     var tops = d.tops || [];
     h += '<section class="card d-card wide"><h3>구성종목 TOP 10 <em>비중 · 전일비 변동</em></h3>';
     if (tops.length) {
-      h += '<table class="d-tbl"><thead><tr><th>#</th><th>종목</th><th>비중</th><th>전일비</th><th>현재가</th><th>등락</th></tr></thead><tbody>';
+      h += '<div class="tbl-wrap"><table class="d-tbl"><thead><tr><th>#</th><th>종목</th><th>비중</th><th>전일비</th><th>현재가</th><th>등락</th></tr></thead><tbody>';
       tops.slice(0, 10).forEach(function (t, i) {
         h += '<tr><td>' + (i + 1) + '</td>'
           + '<td>' + (t.c ? '<a class="row-link" href="#detail/stock/' + esc(t.c) + '">' + esc(t.n) + '</a>' : esc(t.n)) + '</td>'
@@ -724,7 +724,7 @@
           + '<td class="num">' + (t.px != null ? won(t.px) : '—') + '</td>'
           + '<td class="num ' + cls(t.chg) + '">' + pct2(t.chg) + '</td></tr>';
       });
-      h += '</tbody></table>';
+      h += '</tbody></table></div>';
     } else {
       h += '<p class="d-hint">구성종목 스냅샷이 없습니다.</p>';
     }
@@ -771,7 +771,7 @@
       + '</div></section>';
 
     h += '<section class="card d-card wide"><h3>최근 5거래일 <em>종가 · 폭 · 수급</em></h3>'
-      + '<table class="d-tbl"><thead><tr><th>날짜</th><th>종가</th><th>등락</th><th>상승/하락</th><th>외국인</th><th>기관</th></tr></thead><tbody>';
+      + '<div class="tbl-wrap"><table class="d-tbl"><thead><tr><th>날짜</th><th>종가</th><th>등락</th><th>상승/하락</th><th>외국인</th><th>기관</th></tr></thead><tbody>';
     (d.series || []).slice().reverse().forEach(function (r) {
       h += '<tr><td>' + esc(r.d) + '</td><td class="num">' + won(r.c, 2) + '</td>'
         + '<td class="num ' + cls(r.chg) + '">' + pct2(r.chg) + '</td>'
@@ -779,7 +779,7 @@
         + '<td class="num ' + cls(r.f) + '">' + eok(r.f) + '</td>'
         + '<td class="num ' + cls(r.i) + '">' + eok(r.i) + '</td></tr>';
     });
-    h += '</tbody></table></section>';
+    h += '</tbody></table></div></section>';
 
     /* 글로벌 릴레이 내 위치 · 거시 연계 */
     var reg = null;
