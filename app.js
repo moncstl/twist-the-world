@@ -213,10 +213,13 @@
       box.innerHTML = hits.map(function (h, i) {
         var e = h.e;
         var tags = [];
-        if (e.pk) tags.push('타점');
+        if (e.k === 'sector') tags.push('섹터');
+        if (e.k === 'event') tags.push('일정');
+        if (e.pk) tags.push('관찰');
         if (e.sh != null) tags.push('공매도');
         if (e.sq != null && e.sq >= 40) tags.push('물량잠김');
-        var sub = e.m + (e.p != null ? ' · ' + comma(e.p, 0) : '');
+        var sub = (e.k === 'sector' ? '섹터' : (e.k === 'event' ? '일정 ' + (e.d || '') : e.m))
+          + (e.p != null ? ' · ' + comma(e.p, 0) : '');
         if (e.c != null) sub += ' · ' + pct(e.c);
         box_last = i;
         return '<div class="sr" role="option" data-i="' + i + '" aria-selected="false">'
@@ -224,7 +227,7 @@
           + '<span class="sr-sub">' + esc(sub) + (tags.length ? ' · ' + esc(tags.join(' · ')) : '') + '</span></span>'
           + '<span class="sr-act">'
           + (e.a ? '<button class="sr-go" type="button" data-act="jump">이동</button>' : '')
-          + '<button class="sr-go sum" type="button" data-act="sum">요약</button>'
+          + (e.k ? '' : '<button class="sr-go sum" type="button" data-act="sum">요약</button>')
           + '</span></div>';
       }).join('');
     }
@@ -233,6 +236,11 @@
   }
   var box_last = -1;
   function jumpEntry(e) {
+    if (e.k === 'event') {
+      hideSearch();
+      if (e.cal != null && e.cal >= 0) { openDay(e.cal); } else { location.hash = '#calendar'; }
+      return;
+    }
     if (e.a && document.getElementById(e.a)) {
       jumpTo(e.a);
       hideSearch();
@@ -462,7 +470,6 @@
   var DET = DATA.details || {};
   var dRoot = document.getElementById('detailRoot');
   var dMain = document.getElementById('main');
-
   function won(v, d) {
     if (v == null || v === '') return '—';
     return Number(v).toLocaleString('ko-KR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
@@ -856,10 +863,869 @@
   routeDetail();
   bindCalc(document);
 
+  /* 11) v4 모듈(site_v4.js)에 넘기는 최소 인터페이스 — 화면 렌더 함수를 복사하지 않고 재사용한다 */
+  window.__MR = {
+    DATA: DATA, DET: DET, IDX: IDX,
+    openDetail: openDetail, closeDetail: closeDetail, goBack: goBack,
+    renderStock: renderStock, renderEtf: renderEtf, renderIndex: renderIndex,
+    bindCalc: bindCalc, openDay: openDay, openStock: openStock, jumpTo: jumpTo,
+    esc: esc, comma: comma, pct: pct, cls: cls,
+  };
+
   /* 7) PWA 서비스워커(http/https에서만 — file:// 미리보기에서는 건너뜀) */
   if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('sw.js').catch(function () {});
     });
   }
+})();
+
+/* ── v4 개편 추가 모듈 ── */
+/* ══════════════════════════════════════════════════════════════════
+   세상을비틀다 v4 — 화면 모드 · 상세 패널 · 관심종목 · 투자계획 · 가격 조건
+   · 모든 사용자 데이터는 localStorage 에만 저장한다(서버 전송 없음)
+   · 백그라운드 알림·자동 주문·기기 간 동기화는 없다(있는 척하지 않는다)
+   ══════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+
+  var MR = window.__MR || {};
+  var DATA = MR.DATA || {};
+  var DET = MR.DET || {};
+  var IDX = MR.IDX || [];
+  if (!MR.esc) return;
+
+  var esc = MR.esc;
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var root = document.documentElement;
+
+  /* ── 0) 저장소 ─────────────────────────────────────────── */
+  var K = { watch: 'mr:watch', plan: 'mr:plan', alert: 'mr:alert', color: 'mr:color', side: 'mr:side', ex: 'mr:ex' };
+  function load(k, d) { try { var s = localStorage.getItem(k); return s ? JSON.parse(s) : d; } catch (e) { return d; } }
+  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+
+  var watch = load(K.watch, {}) || {};
+  var plans = load(K.plan, []) || [];
+  var alerts = load(K.alert, []) || [];
+  if (!watch || typeof watch !== 'object' || Array.isArray(watch)) watch = {};
+  if (!Array.isArray(plans)) plans = [];
+  if (!Array.isArray(alerts)) alerts = [];
+
+  function nowIso() {
+    var d = new Date();
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function toast(msg) {
+    var t = $('#toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.hidden = false;
+    clearTimeout(t._t);
+    t._t = setTimeout(function () { t.hidden = true; }, 2400);
+  }
+
+  /* ── 1) 종목 정보 해석 — 상세 데이터 우선, 없으면 검색 색인 ── */
+  var idxBy = {};
+  IDX.forEach(function (e) { if (e && e.t) idxBy[e.t] = e; });
+
+  function stockInfo(code) {
+    var d = (DET.stocks || {})[code];
+    if (d) {
+      return { code: code, name: d.n, px: d.px, chg: d.chg, market: d.m, sec: d.sec,
+               plan: d.plan || {}, pick: d.pick || null, date: d.d };
+    }
+    var e = idxBy[code];
+    if (e) {
+      var pk = e.pk || null;
+      return { code: code, name: e.n, px: e.p, chg: e.c, market: e.m, sec: pk && pk.sec || '',
+               plan: pk ? { entry: pk.e1, stop: pk.stop, target: pk.tgt } : {}, pick: pk, date: e.d };
+    }
+    return null;
+  }
+  function nameOf(code) { var i = stockInfo(code); return i ? i.name : code; }
+  function pxOf(code) { var i = stockInfo(code); return i && i.px != null ? Number(i.px) : null; }
+
+  function won(v, d) {
+    if (v == null || v === '') return '—';
+    return Number(v).toLocaleString('ko-KR', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
+  }
+  function pct2(v) {
+    if (v == null) return '—';
+    return (v > 0 ? '+' : (v < 0 ? '−' : '')) + Math.abs(v).toFixed(2) + '%';
+  }
+  function cls(v) { return v == null ? 'flat' : (v > 0 ? 'up' : (v < 0 ? 'down' : 'flat')); }
+  function escAttr(s) { return String(s == null ? '' : s).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+  /* ── 2) 화면 모드: home / explore / watch ───────────────── */
+  var EX_TABS = ['picks', 'sectors', 'flow', 'etf', 'content'];
+  var exTab = 'picks';
+  try { exTab = sessionStorage.getItem(K.ex) || 'picks'; } catch (e) {}
+  if (EX_TABS.indexOf(exTab) < 0) exTab = 'picks';
+
+  function applyExplore(tab) {
+    exTab = tab || exTab;
+    $$('#main > section').forEach(function (s) { s.classList.toggle('ex-active', s.id === exTab); });
+    $$('.ex-tab').forEach(function (b) {
+      var on = b.getAttribute('data-ex') === exTab;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    try { sessionStorage.setItem(K.ex, exTab); } catch (e) {}
+  }
+
+  function setScreen(name) {
+    var cur = document.body.getAttribute('data-screen') || 'home';
+    document.body.setAttribute('data-screen', name || 'home');
+    $$('.tabbar .tb').forEach(function (a) {
+      var nav = a.getAttribute('data-nav');
+      var on = (name === 'explore' && nav === 'explore') || (name === 'watch' && nav === 'watch')
+            || ((!name || name === 'home') && nav === 'home');
+      a.classList.toggle('active', !!on);
+    });
+    if (name === 'explore' && cur !== 'explore') applyExplore(exTab);
+    if (name === 'explore') window.scrollTo(0, 0);
+  }
+
+  $$('.ex-tab').forEach(function (b) {
+    b.addEventListener('click', function () { applyExplore(b.getAttribute('data-ex')); window.scrollTo(0, 0); });
+  });
+
+  /* ── 3) 테마·색상 모드 ─────────────────────────────────── */
+  function applyColor(mode) {
+    root.setAttribute('data-colormode', mode === 'global' ? 'global' : 'kr');
+    try { localStorage.setItem(K.color, mode); } catch (e) {}
+    $$('[data-set-color]').forEach(function (b) {
+      b.classList.toggle('on', b.getAttribute('data-set-color') === (mode === 'global' ? 'global' : 'kr'));
+    });
+  }
+  applyColor(load(K.color, 'kr') || 'kr');
+  function syncThemeBtns() {
+    var t = root.getAttribute('data-theme');
+    $$('[data-set-theme]').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-set-theme') === t); });
+  }
+
+  /* ── 4) 시트(전체·도움말·입력) ─────────────────────────── */
+  var sheet = $('#sheet'), sheetBody = $('#sheetBody'), sheetTitle = $('#sheetTitle');
+  function openSheet(title, html) {
+    if (!sheet) return;
+    sheetTitle.textContent = title;
+    sheetBody.innerHTML = html;
+    sheet.hidden = false;
+    syncThemeBtns();
+    var first = sheetBody.querySelector('input, button, a');
+    if (first) setTimeout(function () { try { first.focus(); } catch (e) {} }, 30);
+  }
+  function closeSheet() { if (sheet) { sheet.hidden = true; sheetBody.innerHTML = ''; } }
+  function openAll() {
+    var tpl = $('#tplAll');
+    openSheet('전체 메뉴 · 표시 설정', tpl ? tpl.innerHTML : '');
+    syncThemeBtns();
+  }
+  function openHelp() {
+    var tpl = $('#tplHelp');
+    openSheet('도움말 센터 — 지표 읽는 법', tpl ? tpl.innerHTML : '');
+  }
+  if (sheet) {
+    sheet.addEventListener('click', function (ev) {
+      if (ev.target.getAttribute && ev.target.getAttribute('data-sheet-close')) closeSheet();
+    });
+  }
+
+  /* ── 5) 상세 패널(drawer) ──────────────────────────────── */
+  var drawer = $('#drawer'), dBody = $('#drawerBody'), dScrim = $('#drawerScrim'), dTitle = $('#drawerTitle'), dFull = $('#drawerFull');
+  var wide = function () { return window.matchMedia('(min-width:1240px)').matches; };
+
+  function renderDetail(kind, code) {
+    if (kind === 'stock') { var s = (DET.stocks || {})[code]; return s ? MR.renderStock(s) : null; }
+    if (kind === 'etf') { var e = (DET.etfs || {})[code]; return e ? MR.renderEtf(e) : null; }
+    var i = (DET.indices || {})[code];
+    return i ? MR.renderIndex(i) : null;
+  }
+  function detailName(kind, code) {
+    if (kind === 'stock') { var s = (DET.stocks || {})[code]; return s ? s.n : code; }
+    if (kind === 'etf') { var e = (DET.etfs || {})[code]; return e ? e.n : code; }
+    var i = (DET.indices || {})[code]; return i ? (i.n || code) : code;
+  }
+
+  function openDrawer(kind, code, push) {
+    if (!drawer) return;
+    var html = renderDetail(kind, code);
+    if (!html) {
+      html = '<div class="wrap"><p class="wp-empty"><b>데이터가 없는 종목입니다</b>' + esc(nameOf(code)) +
+             ' — 상세 데이터를 아직 수집하지 못했습니다. 검색 색인 값으로만 확인할 수 있습니다.</p></div>';
+    }
+    dBody.innerHTML = html;
+    dTitle.textContent = detailName(kind, code);
+    dFull.setAttribute('href', '#detail/' + kind + '/' + code);
+    dFull.setAttribute('data-nodrawer', '1');
+    drawer.hidden = false;
+    dScrim.hidden = false;
+    document.body.classList.add('drawer-open');
+    try { MR.bindCalc(dBody); } catch (e) {}
+    injectTools(dBody, kind, code);
+    if (push) { try { history.pushState({ panel: 1 }, '', '#panel/' + kind + '/' + code); } catch (e) {} }
+    dBody.scrollTop = 0;
+  }
+  function closeDrawer(pop) {
+    if (!drawer || drawer.hidden) return;
+    drawer.hidden = true;
+    dScrim.hidden = true;
+    dBody.innerHTML = '';
+    document.body.classList.remove('drawer-open');
+    if (!pop && history.state && history.state.panel) { try { history.back(); } catch (e) {} }
+  }
+  if ($('#drawerClose')) $('#drawerClose').addEventListener('click', function () { closeDrawer(false); });
+  if (dScrim) dScrim.addEventListener('click', function () { closeDrawer(false); });
+
+  /* 링크 클릭: PC에서는 상세 페이지 대신 우측 패널 */
+  document.addEventListener('click', function (ev) {
+    var a = ev.target.closest ? ev.target.closest('a[href^="#detail/"]') : null;
+    if (!a || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button === 1) return;
+    if (a.hasAttribute('data-nodrawer') || a.closest('[data-nodrawer]')) return;
+    if (!wide()) return;
+    var m = (a.getAttribute('href') || '').match(/^#detail\/(stock|etf|index)\/([A-Za-z0-9._-]+)/);
+    if (!m) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    openDrawer(m[1], m[2], true);
+  }, true);
+
+  /* ── 6) 사용자 도구(관심·계획·조건·공유) ───────────────── */
+  function watchBtnHtml(code, info) {
+    var on = !!watch[code];
+    return '<button class="btn' + (on ? ' starred' : '') + '" type="button" data-watch="' + escAttr(code) + '" ' +
+      'data-name="' + escAttr(info && info.name || nameOf(code)) + '" aria-pressed="' + (on ? 'true' : 'false') + '">' +
+      (on ? '★ 관심 등록됨' : '☆ 관심 등록') + '</button>';
+  }
+
+  function injectTools(box, kind, code) {
+    if (!box || kind !== 'stock') return;
+    if (box.querySelector('.user-tools[data-code="' + code + '"]')) return;
+    var info = stockInfo(code);
+    if (!info) return;
+    var bar = document.createElement('div');
+    bar.className = 'user-tools';
+    bar.setAttribute('data-code', code);
+    bar.innerHTML = watchBtnHtml(code, info) +
+      '<button class="btn" type="button" data-plan="' + escAttr(code) + '">🧮 투자계획</button>' +
+      '<button class="btn" type="button" data-alert="' + escAttr(code) + '">🔔 가격 조건</button>' +
+      '<button class="btn ghost" type="button" data-share="' + escAttr(kind + '/' + code) + '">🔗 링크 복사</button>';
+    var anchor = box.querySelector('.d-top') || box.firstElementChild;
+    if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(bar, anchor.nextSibling);
+    else box.insertBefore(bar, box.firstChild);
+  }
+
+  function syncWatchButtons(code) {
+    var on = !!watch[code];
+    $$('[data-watch="' + code + '"]').forEach(function (b) {
+      b.classList.toggle('starred', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.textContent = on ? '★ 관심 등록됨' : '☆ 관심 등록';
+    });
+  }
+
+  function toggleWatch(code, name) {
+    if (watch[code]) { delete watch[code]; toast(name + ' 관심 해제'); }
+    else { watch[code] = { code: code, name: name || nameOf(code), added: nowIso() }; toast(name + ' 관심 등록 — 관심 탭에서 관리'); }
+    save(K.watch, watch);
+    syncWatchButtons(code);
+    renderWatch();
+  }
+
+  /* ── 7) 관심·계획·조건 렌더 ─────────────────────────────── */
+  var wtab = 'watch';
+  function counts() {
+    return { w: Object.keys(watch).length, p: plans.length, a: alerts.length };
+  }
+  function planStatus(p, px) {
+    if (px == null) return { k: 'info', t: '가격 미확인' };
+    if (px <= p.stop) return { k: 'bad', t: '무효 — 무효 기준 이탈' };
+    if (px >= p.target) return { k: 'on', t: '목표 도달' };
+    if (px <= p.entry) return { k: 'info', t: '관찰 구간 안' };
+    return { k: '', t: '관찰 중 — 진입가 위' };
+  }
+  function alertState(a, px) {
+    if (px == null) return { k: 'info', t: '가격 미확인' };
+    var hit = a.op === 'above' ? px >= a.price : px <= a.price;
+    return hit ? { k: 'on', t: '조건 충족 — 앱 열 때 확인됨' } : { k: '', t: '대기' };
+  }
+
+  function itemHead(code, info, px) {
+    return '<div class="wp-top"><h3><a href="#detail/stock/' + escAttr(code) + '">' + esc(info ? info.name : nameOf(code)) +
+      '</a><span class="code">' + esc(code) + '</span></h3>' +
+      '<div class="wp-px"><b>' + (px != null ? won(px) + '원' : '—') + '</b>' +
+      '<span class="' + cls(info && info.chg) + '">' + (info && info.chg != null ? pct2(info.chg) : '기준가 미확인') + '</span></div></div>';
+  }
+
+  function renderWatch() {
+    var pane = $('#watchPane');
+    var c = counts();
+    if ($('#wCount')) $('#wCount').textContent = c.w;
+    if ($('#pCount')) $('#pCount').textContent = c.p;
+    if ($('#aCount')) $('#aCount').textContent = c.a;
+    var badge = $('#watchBadge');
+    if (badge) {
+      badge.textContent = c.w;
+      if (c.w) badge.hidden = false; else badge.hidden = true;
+    }
+    var sc = $('#sideWatchCount');
+    if (sc) sc.textContent = c.w;
+    $$('#watch-tabs button').forEach(function (b) {
+      var on = b.getAttribute('data-wtab') === wtab;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    var asof = $('#watchAsOf');
+    if (asof) asof.textContent = '이 브라우저에 저장 · ' + nowIso();
+
+    if (!pane) return;
+    var html = '';
+    if (wtab === 'watch') {
+      var codes = Object.keys(watch);
+      if (!codes.length) {
+        html = '<div class="wp-empty"><b>아직 등록한 종목이 없습니다</b>' +
+          '종목 카드나 상세 화면의 <b>☆ 관심 등록</b>을 누르면 여기에 모입니다.' +
+          '<div class="wp-actions" style="justify-content:center"><a class="btn primary" href="#explore">탐색에서 종목 찾기</a></div></div>';
+      } else {
+        html = codes.map(function (code) {
+          var info = stockInfo(code);
+          var px = info && info.px != null ? Number(info.px) : null;
+          var pl = plans.filter(function (x) { return x.code === code; })[0];
+          var al = alerts.filter(function (x) { return x.code === code; })[0];
+          var badges = '';
+          if (pl) { var st = planStatus(pl, px); badges += '<span class="wp-badge ' + st.k + '">계획 · ' + esc(st.t) + '</span>'; }
+          if (al) { var as = alertState(al, px); badges += '<span class="wp-badge ' + as.k + '">조건 · ' + esc(as.t) + '</span>'; }
+          var line = pl ? '<div class="wp-planline"><span>진입 <b>' + won(pl.entry) + '</b></span><span>무효 <b>' + won(pl.stop) + '</b></span>' +
+            '<span>목표 <b>' + won(pl.target) + '</b></span><span>수량 <b>' + won(pl.qty) + '주</b></span>' +
+            '<span>손익비 <b>' + (pl.rr != null ? Number(pl.rr).toFixed(2) : '—') + '</b></span></div>' : '';
+          return '<article class="wp-item" data-item="' + escAttr(code) + '">' + itemHead(code, info, px) +
+            '<div class="wp-badges">' + (badges || '<span class="wp-badge">계획 없음</span>') + '</div>' + line +
+            '<div class="wp-actions">' +
+            '<a class="btn" href="#detail/stock/' + escAttr(code) + '">상세</a>' +
+            '<button class="btn" type="button" data-plan="' + escAttr(code) + '">계획 ' + (pl ? '수정' : '만들기') + '</button>' +
+            '<button class="btn" type="button" data-alert="' + escAttr(code) + '">조건 ' + (al ? '수정' : '설정') + '</button>' +
+            '<button class="btn danger" type="button" data-unwatch="' + escAttr(code) + '">관심 해제</button>' +
+            '</div></article>';
+        }).join('');
+      }
+    } else if (wtab === 'plan') {
+      if (!plans.length) {
+        html = '<div class="wp-empty"><b>아직 만든 투자계획이 없습니다</b>' +
+          '종목 상세에서 <b>🧮 투자계획</b>을 누르면 진입·무효·목표 가격과 손실 한도로 수량을 계산해 저장합니다.' +
+          '<div class="wp-actions" style="justify-content:center"><a class="btn primary" href="#explore">종목 보기</a></div></div>';
+      } else {
+        html = plans.slice().reverse().map(function (p) {
+          var info = stockInfo(p.code);
+          var px = info && info.px != null ? Number(info.px) : null;
+          var st = planStatus(p, px);
+          return '<article class="wp-item">' + itemHead(p.code, info, px) +
+            '<div class="wp-badges"><span class="wp-badge ' + st.k + '">' + esc(st.t) + '</span>' +
+            '<span class="wp-badge">' + esc(p.created || '') + ' 저장</span></div>' +
+            '<div class="wp-planline"><span>진입 <b>' + won(p.entry) + '</b> <em>' + (px != null ? pct2((px / p.entry - 1) * 100) : '') + '</em></span>' +
+            '<span>무효 <b>' + won(p.stop) + '</b></span><span>목표 <b>' + won(p.target) + '</b></span>' +
+            '<span>수량 <b>' + won(p.qty) + '주</b></span><span>예상 손실 <b>' + won(p.loss) + '원</b></span>' +
+            '<span>손익비 <b>' + (p.rr != null ? Number(p.rr).toFixed(2) : '—') + '</b></span></div>' +
+            '<div class="wp-actions"><a class="btn" href="#detail/stock/' + escAttr(p.code) + '">상세</a>' +
+            '<button class="btn" type="button" data-plan="' + escAttr(p.code) + '" data-planid="' + escAttr(p.id) + '">수정</button>' +
+            '<button class="btn danger" type="button" data-delplan="' + escAttr(p.id) + '">삭제</button></div></article>';
+        }).join('');
+      }
+    } else {
+      if (!alerts.length) {
+        html = '<div class="wp-empty"><b>설정한 가격 조건이 없습니다</b>' +
+          '종목 상세에서 <b>🔔 가격 조건</b>을 누르면 ‘이 가격 이상/이하’를 저장합니다. 조건은 앱을 열 때 비교합니다.' +
+          '<div class="wp-actions" style="justify-content:center"><a class="btn primary" href="#explore">종목 보기</a></div></div>';
+      } else {
+        html = alerts.slice().reverse().map(function (a) {
+          var info = stockInfo(a.code);
+          var px = info && info.px != null ? Number(info.px) : null;
+          var st = alertState(a, px);
+          return '<article class="wp-item">' + itemHead(a.code, info, px) +
+            '<div class="wp-badges"><span class="wp-badge ' + st.k + '">' + esc(st.t) + '</span></div>' +
+            '<div class="wp-planline"><span>조건 <b>' + (a.op === 'above' ? '이상' : '이하') + ' ' + won(a.price) + '원</b></span>' +
+            '<span>현재 <b>' + (px != null ? won(px) + '원' : '—') + '</b></span><span>' + esc(a.created || '') + ' 저장</span></div>' +
+            '<div class="wp-actions"><a class="btn" href="#detail/stock/' + escAttr(a.code) + '">상세</a>' +
+            '<button class="btn" type="button" data-alert="' + escAttr(a.code) + '" data-alertid="' + escAttr(a.id) + '">수정</button>' +
+            '<button class="btn danger" type="button" data-delalert="' + escAttr(a.id) + '">삭제</button></div></article>';
+        }).join('');
+      }
+    }
+    pane.innerHTML = html;
+
+    // 우측 패널의 관심종목 미니 목록
+    var rail = $('#railWatch');
+    if (rail) {
+      var codes2 = Object.keys(watch).slice(0, 5);
+      if (!codes2.length) rail.innerHTML = '<p class="rail-empty">아직 등록한 종목이 없습니다.</p>';
+      else rail.innerHTML = codes2.map(function (code) {
+        var i = stockInfo(code);
+        var px = i && i.px != null ? Number(i.px) : null;
+        return '<a class="rw-item" href="#detail/stock/' + escAttr(code) + '"><b>' + esc(i ? i.name : code) + '</b>' +
+          '<span class="rw-px">' + (px != null ? won(px) : '—') + '</span>' +
+          '<span class="rw-chg ' + cls(i && i.chg) + '">' + (i && i.chg != null ? pct2(i.chg) : '') + '</span></a>';
+      }).join('');
+    }
+  }
+
+  $$('#watch-tabs button').forEach(function (b) {
+    b.addEventListener('click', function () { wtab = b.getAttribute('data-wtab'); renderWatch(); });
+  });
+
+  /* ── 8) 투자계획 입력 ───────────────────────────────────── */
+  function calcPlan(v) {
+    var entry = Number(v.entry), stop = Number(v.stop), target = Number(v.target);
+    var cap = Number(v.capital), riskPct = Number(v.riskPct);
+    var out = { ok: false, qty: 0, loss: 0, amt: 0, weight: 0, rr: null, gain: 0, warn: '' };
+    if (!(entry > 0) || !(stop > 0) || !(target > 0)) { out.warn = '진입·무효·목표 가격을 모두 입력하세요.'; return out; }
+    if (stop >= entry) { out.warn = '무효(손절) 가격은 진입가보다 낮아야 합니다.'; return out; }
+    if (target <= entry) { out.warn = '목표 가격은 진입가보다 높아야 합니다.'; return out; }
+    if (!(cap > 0) || !(riskPct > 0)) { out.warn = '총 투자금과 허용 손실률을 확인하세요.'; return out; }
+    var per = entry - stop;
+    var budget = cap * riskPct / 100;
+    var qRisk = Math.floor(budget / per);
+    var qCap = Math.floor(cap / entry);
+    out.qty = Math.max(0, Math.min(qRisk, qCap));
+    out.loss = out.qty * per;
+    out.amt = out.qty * entry;
+    out.weight = cap > 0 ? out.amt / cap * 100 : 0;
+    out.rr = (target - entry) / per;
+    out.gain = out.qty * (target - entry);
+    out.ok = out.qty > 0;
+    if (!out.qty) out.warn = '계산된 수량이 0주입니다 — 허용 손실 또는 투자금을 늘리거나 가격 폭을 확인하세요.';
+    else if (qRisk > qCap) out.warn = '허용 손실로는 ' + won(qRisk) + '주지만 투자금 한도에서 ' + won(qCap) + '주로 제한했습니다.';
+    return out;
+  }
+
+  function planForm(p) {
+    var code = p.code, info = stockInfo(code) || {};
+    var base = p.id ? plans.filter(function (x) { return x.id === p.id; })[0] : null;
+    var entry = base ? base.entry : (p.entry || info.plan.entry || info.px || '');
+    var stop = base ? base.stop : (p.stop || info.plan.stop || '');
+    var target = base ? base.target : (p.target || info.plan.target || '');
+    var capital = base ? base.capital : 10000000;
+    var riskPct = base ? base.riskPct : 0.5;
+    return {
+      title: '투자계획 — ' + (info.name || code),
+      html: '<form class="form-grid" id="planForm" novalidate>' +
+        '<p class="help-lead">' + esc(info.name || code) + ' <b>' + esc(code) + '</b> · 현재가 ' +
+        (info.px != null ? won(info.px) + '원' : '미확인') + ' (기준 ' + esc(info.date || '—') + ')' +
+        '<br>값을 바꾸면 수량·손실이 바로 계산됩니다. 저장은 이 브라우저에만 됩니다.</p>' +
+        '<div class="form-3"><div class="fld"><label for="plEntry">진입가</label><input id="plEntry" type="number" min="1" step="1" value="' + (entry || '') + '" inputmode="numeric"></div>' +
+        '<div class="fld"><label for="plStop">무효(손절)가</label><input id="plStop" type="number" min="1" step="1" value="' + (stop || '') + '" inputmode="numeric"></div>' +
+        '<div class="fld"><label for="plTarget">목표가</label><input id="plTarget" type="number" min="1" step="1" value="' + (target || '') + '" inputmode="numeric"></div></div>' +
+        '<div class="form-2"><div class="fld"><label for="plCap">총 투자금(원)</label><input id="plCap" type="number" min="0" step="100000" value="' + capital + '" inputmode="numeric"><span class="hint">이 종목에 배정할 금액</span></div>' +
+        '<div class="fld"><label for="plRisk">1회 허용 손실률(%)</label><input id="plRisk" type="number" min="0.1" max="100" step="0.1" value="' + riskPct + '" inputmode="decimal"><span class="hint">총 투자금 대비</span></div></div>' +
+        '<div class="plan-calc" id="planCalc"></div>' +
+        '<p class="plan-warn" id="planWarn" hidden></p>' +
+        '<div class="sheet-actions"><button class="btn primary" type="submit">계획 저장</button>' +
+        (base ? '<button class="btn danger" type="button" data-delplan="' + escAttr(base.id) + '">삭제</button>' : '') +
+        '<button class="btn ghost" type="button" data-sheet-close="1">취소</button></div>' +
+        '<p class="wp-note">계산은 입력값에 따른 산술 결과이며 매수 권유가 아닙니다. 실제 체결가는 수수료·슬리피지로 달라집니다.</p>' +
+        '</form>'
+    };
+  }
+
+  function openPlan(code, planId) {
+    var info = stockInfo(code);
+    if (!info && !planId) { toast('종목 정보를 찾지 못했습니다'); return; }
+    var p = { code: code, entry: info && info.plan ? info.plan.entry : null, stop: info && info.plan ? info.plan.stop : null,
+              target: info && info.plan ? info.plan.target : null, id: planId || null };
+    var f = planForm(p);
+    openSheet(f.title, f.html);
+    var form = $('#planForm');
+    if (!form) return;
+    function read() {
+      return { entry: $('#plEntry').value, stop: $('#plStop').value, target: $('#plTarget').value,
+               capital: $('#plCap').value, riskPct: $('#plRisk').value };
+    }
+    function run() {
+      var v = read();
+      var r = calcPlan(v);
+      var el = $('#planCalc');
+      el.innerHTML =
+        '<div><span>매수 가능 수량</span><b>' + won(r.qty) + '주</b></div>' +
+        '<div><span>주문 금액</span><b>' + won(r.amt) + '원</b></div>' +
+        '<div><span>투자금 대비</span><b>' + (r.weight ? r.weight.toFixed(1) : '0') + '%</b></div>' +
+        '<div><span>예상 손실(무효 시)</span><b>' + won(r.loss) + '원</b></div>' +
+        '<div><span>목표 시 이익</span><b>' + won(r.gain) + '원</b></div>' +
+        '<div><span>손익비</span><b>' + (r.rr != null ? r.rr.toFixed(2) + ' : 1' : '—') + '</b></div>';
+      var w = $('#planWarn');
+      if (r.warn) { w.textContent = r.warn; w.hidden = false; w.className = 'plan-warn' + (r.ok ? '' : ' bad'); }
+      else w.hidden = true;
+      return r;
+    }
+    ['plEntry', 'plStop', 'plTarget', 'plCap', 'plRisk'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('input', run);
+    });
+    run();
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var v = read();
+      var r = calcPlan(v);
+      if (!r.ok) { toast(r.warn || '입력값을 확인하세요'); return; }
+      var rec = {
+        id: planId || ('p' + Date.now().toString(36)),
+        code: code, name: info ? info.name : nameOf(code),
+        entry: Number(v.entry), stop: Number(v.stop), target: Number(v.target),
+        capital: Number(v.capital), riskPct: Number(v.riskPct),
+        qty: r.qty, loss: r.loss, amt: r.amt, rr: Math.round(r.rr * 100) / 100,
+        created: nowIso()
+      };
+      var i = plans.findIndex(function (x) { return x.id === rec.id; });
+      if (i >= 0) plans[i] = rec; else plans.push(rec);
+      save(K.plan, plans);
+      if (!watch[code]) { watch[code] = { code: code, name: rec.name, added: nowIso() }; save(K.watch, watch); syncWatchButtons(code); }
+      wtab = 'plan';
+      renderWatch();
+      closeSheet();
+      toast(rec.name + ' 투자계획 저장 — ' + won(rec.qty) + '주 · 예상 손실 ' + won(rec.loss) + '원');
+    });
+  }
+
+  /* ── 9) 가격 조건 입력 ──────────────────────────────────── */
+  function openAlert(code, alertId) {
+    var info = stockInfo(code) || {};
+    var base = alertId ? alerts.filter(function (x) { return x.id === alertId; })[0] : null;
+    var op = base ? base.op : 'above';
+    var price = base ? base.price : (info.px != null ? info.px : '');
+    openSheet('가격 조건 — ' + (info.name || code),
+      '<form class="form-grid" id="alertForm" novalidate>' +
+      '<p class="help-lead">' + esc(info.name || code) + ' <b>' + esc(code) + '</b> · 현재가 ' +
+      (info.px != null ? won(info.px) + '원' : '미확인') + '</p>' +
+      '<div class="form-2"><div class="fld"><label for="alOp">조건</label><select id="alOp">' +
+      '<option value="above"' + (op === 'above' ? ' selected' : '') + '>이 가격 이상이면</option>' +
+      '<option value="below"' + (op === 'below' ? ' selected' : '') + '>이 가격 이하이면</option></select></div>' +
+      '<div class="fld"><label for="alPrice">가격(원)</label><input id="alPrice" type="number" min="1" step="1" value="' + (price || '') + '" inputmode="numeric"></div></div>' +
+      '<p class="plan-warn" id="alertWarn" hidden></p>' +
+      '<div class="sheet-actions"><button class="btn primary" type="submit">조건 저장</button>' +
+      (base ? '<button class="btn danger" type="button" data-delalert="' + escAttr(base.id) + '">삭제</button>' : '') +
+      '<button class="btn ghost" type="button" data-sheet-close="1">취소</button></div>' +
+      '<p class="wp-note">이 조건은 <b>앱을 열 때</b> 현재가와 비교해 ‘조건 충족’을 표시합니다. 백그라운드 푸시 알림·문자·자동 주문은 지원하지 않습니다.</p>' +
+      '</form>');
+    var form = $('#alertForm');
+    if (!form) return;
+    function check() {
+      var pr = Number($('#alPrice').value);
+      var w = $('#alertWarn');
+      if (!(pr > 0)) { w.textContent = '가격을 입력하세요.'; w.hidden = false; w.className = 'plan-warn bad'; return false; }
+      var opv = $('#alOp').value;
+      if (info.px != null && ((opv === 'above' && pr <= info.px) || (opv === 'below' && pr >= info.px))) {
+        w.textContent = '현재가(' + won(info.px) + '원) 기준으로 이미 충족되는 조건입니다 — 저장은 되지만 바로 ‘조건 충족’으로 표시됩니다.';
+        w.hidden = false; w.className = 'plan-warn';
+      } else w.hidden = true;
+      return true;
+    }
+    $('#alPrice').addEventListener('input', check);
+    $('#alOp').addEventListener('change', check);
+    check();
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      if (!check()) return;
+      var rec = { id: alertId || ('a' + Date.now().toString(36)), code: code, name: info.name || nameOf(code),
+                  op: $('#alOp').value, price: Number($('#alPrice').value), created: nowIso() };
+      var i = alerts.findIndex(function (x) { return x.id === rec.id; });
+      if (i >= 0) alerts[i] = rec; else alerts.push(rec);
+      save(K.alert, alerts);
+      if (!watch[code]) { watch[code] = { code: code, name: rec.name, added: nowIso() }; save(K.watch, watch); syncWatchButtons(code); }
+      wtab = 'alert';
+      renderWatch();
+      closeSheet();
+      toast(rec.name + ' 가격 조건 저장 — ' + (rec.op === 'above' ? '이상 ' : '이하 ') + won(rec.price) + '원');
+    });
+  }
+
+  /* ── 10) 캘린더 ICS 내보내기 ───────────────────────────── */
+  function icsEscape(s) { return String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n'); }
+  function download(blob, name) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 400);
+  }
+  function exportIcs(name, date, time) {
+    var d = String(date || '').replace(/-/g, '');
+    if (!d) { toast('날짜가 없어 일정 파일을 만들 수 없습니다'); return; }
+    var stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, 'Z');
+    var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//twist-the-world//market-radar//KO', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+      'UID:' + d + '-' + Math.abs(String(name).split('').reduce(function (h, c) { return (h * 31 + c.charCodeAt(0)) | 0; }, 7)) + '@moncstl.github.io',
+      'DTSTAMP:' + stamp];
+    if (time && /^\d{1,2}:\d{2}/.test(time)) {
+      var t = time.slice(0, 5).replace(':', '');
+      if (t.length === 3) t = '0' + t;
+      lines.push('DTSTART;TZID=Asia/Seoul:' + d + 'T' + t + '00');
+      lines.push('DTEND;TZID=Asia/Seoul:' + d + 'T' + t + '00');
+      lines.push('BEGIN:VALARM', 'TRIGGER:-PT30M', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEscape(name), 'END:VALARM');
+    } else {
+      lines.push('DTSTART;VALUE=DATE:' + d);
+      lines.push('DTEND;VALUE=DATE:' + d);
+    }
+    lines.push('SUMMARY:' + icsEscape(name));
+    lines.push('DESCRIPTION:세상을비틀다 시장 레이더의 공개 시장 일정입니다.');
+    lines.push('END:VEVENT', 'END:VCALENDAR');
+    download(new Blob([lines.join('\r\n')], { type: 'text/calendar;charset=utf-8' }), 'market-event-' + d + '.ics');
+    toast('일정 파일을 내려받았습니다 — 캘린더 앱에서 열어 추가하세요');
+  }
+
+  /* ── 11) 공유 링크 복사 ─────────────────────────────────── */
+  function shareLink(path) {
+    var base = location.protocol === 'file:' ? location.href.split('#')[0] : location.origin + location.pathname;
+    var url = base + '#detail/' + path;
+    function done() { toast('링크를 복사했습니다 — ' + url); }
+    function fallback() {
+      var t = document.createElement('textarea');
+      t.value = url; t.style.position = 'fixed'; t.style.opacity = '0';
+      document.body.appendChild(t); t.select();
+      try { document.execCommand('copy'); done(); } catch (e) { toast('링크: ' + url); }
+      t.remove();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, fallback);
+    else fallback();
+  }
+
+  /* ── 12) 클릭 위임 ──────────────────────────────────────── */
+  document.addEventListener('click', function (ev) {
+    var t = ev.target;
+    if (!t || !t.closest) return;
+    var el;
+    if ((el = t.closest('[data-watch]'))) {
+      ev.preventDefault();
+      toggleWatch(el.getAttribute('data-watch'), el.getAttribute('data-name'));
+      return;
+    }
+    if ((el = t.closest('[data-unwatch]'))) {
+      ev.preventDefault();
+      var c = el.getAttribute('data-unwatch');
+      toggleWatch(c, watch[c] && watch[c].name);
+      return;
+    }
+    if ((el = t.closest('[data-plan]'))) {
+      ev.preventDefault();
+      openPlan(el.getAttribute('data-plan'), el.getAttribute('data-planid'));
+      return;
+    }
+    if ((el = t.closest('[data-alert]'))) {
+      ev.preventDefault();
+      openAlert(el.getAttribute('data-alert'), el.getAttribute('data-alertid'));
+      return;
+    }
+    if ((el = t.closest('[data-delplan]'))) {
+      ev.preventDefault();
+      var idp = el.getAttribute('data-delplan');
+      plans = plans.filter(function (x) { return x.id !== idp; });
+      save(K.plan, plans);
+      if (sheet && !sheet.hidden) closeSheet();
+      renderWatch();
+      toast('투자계획을 삭제했습니다');
+      return;
+    }
+    if ((el = t.closest('[data-delalert]'))) {
+      ev.preventDefault();
+      var ida = el.getAttribute('data-delalert');
+      alerts = alerts.filter(function (x) { return x.id !== ida; });
+      save(K.alert, alerts);
+      if (sheet && !sheet.hidden) closeSheet();
+      renderWatch();
+      toast('가격 조건을 삭제했습니다');
+      return;
+    }
+    if ((el = t.closest('[data-share]'))) {
+      ev.preventDefault();
+      shareLink(el.getAttribute('data-share'));
+      return;
+    }
+    if ((el = t.closest('[data-ics-name]'))) {
+      ev.preventDefault();
+      exportIcs(el.getAttribute('data-ics-name'), el.getAttribute('data-ics-date'), el.getAttribute('data-ics-time'));
+      return;
+    }
+    if ((el = t.closest('[data-set-theme]'))) {
+      var th = el.getAttribute('data-set-theme');
+      root.setAttribute('data-theme', th);
+      try { localStorage.setItem('mr-theme', th); } catch (e) {}
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', th === 'dark' ? '#10151F' : '#F4F6FA');
+      syncThemeBtns();
+      return;
+    }
+    if ((el = t.closest('[data-set-color]'))) { applyColor(el.getAttribute('data-set-color')); return; }
+    if ((el = t.closest('[data-sheet]'))) {
+      ev.preventDefault();
+      openAll();
+      return;
+    }
+    if ((el = t.closest('[data-open-search]'))) {
+      ev.preventDefault();
+      closeSheet();
+      var sb = $('#searchBtn'), q = $('#q');
+      if (sb && sb.offsetParent !== null) sb.click();
+      if (q) setTimeout(function () { q.focus(); }, 60);
+      return;
+    }
+  });
+
+  /* 시트 안의 바로가기 링크는 시트를 닫고 이동 */
+  document.addEventListener('click', function (ev) {
+    var a = ev.target.closest ? ev.target.closest('#sheetBody a[href^="#"]') : null;
+    if (!a) return;
+    if (a.hasAttribute('data-open-search')) return;
+    closeSheet();
+  });
+
+  /* 메뉴 버튼(좁은 화면) */
+  var side = $('#sideNav'), scrim = $('#sideScrim'), menuBtn = $('#menuBtn');
+  function openSide(open) {
+    if (!side) return;
+    side.classList.toggle('open', open);
+    if (scrim) scrim.hidden = !open;
+    if (menuBtn) menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  if (menuBtn) menuBtn.addEventListener('click', function () { openSide(!side.classList.contains('open')); });
+  if (scrim) scrim.addEventListener('click', function () { openSide(false); });
+  $$('#sideNav .side-nav a').forEach(function (a) { a.addEventListener('click', function () { openSide(false); }); });
+
+  /* 좌측 접기(데스크톱) */
+  var shell = $('.appshell'), sideBtn = $('#sideCollapse');
+  if (sideBtn) sideBtn.addEventListener('click', function () {
+    var col = shell.classList.toggle('side-collapsed');
+    sideBtn.textContent = col ? '»' : '«';
+    try { localStorage.setItem(K.side, col ? '1' : '0'); } catch (e) {}
+  });
+  if (load(K.side, '0') === '1' && shell) { shell.classList.add('side-collapsed'); if (sideBtn) sideBtn.textContent = '»'; }
+
+  /* 도움말·설정 */
+  ['#helpBtn', '#helpBtn2'].forEach(function (sel) {
+    var b = $(sel);
+    if (b) b.addEventListener('click', function (ev) { ev.preventDefault(); openHelp(); });
+  });
+  var setBtn = $('#settingsBtn');
+  if (setBtn) setBtn.addEventListener('click', function () { openAll(); });
+
+  /* ── 13) 화면 전환·해시 라우팅 ─────────────────────────── */
+  document.addEventListener('click', function (ev) {
+    var a = ev.target.closest ? ev.target.closest('a[href]') : null;
+    if (!a) return;
+    var href = a.getAttribute('href') || '';
+    if (href === '#explore') { ev.preventDefault(); setScreen('explore'); try { history.pushState(null, '', '#explore'); } catch (e) { location.hash = '#explore'; } return; }
+    if (href === '#watch') { setScreen('watch'); return; }
+    if (href === '#help' || href === '#guide') { ev.preventDefault(); openHelp(); return; }
+    if (href.charAt(0) === '#' && href.length > 1) {
+      if (document.body.getAttribute('data-screen') !== 'home') setScreen('home');
+    }
+  }, true);
+
+  function routeV4() {
+    var h = '';
+    try { h = decodeURIComponent((location.hash || '').replace(/^#/, '')); } catch (e) { h = ''; }
+    var m = h.match(/^panel\/(stock|etf|index)\/([A-Za-z0-9._-]+)$/);
+    if (m) {
+      if (wide()) { openDrawer(m[1], m[2], false); }
+      else { location.hash = '#detail/' + m[1] + '/' + m[2]; }
+      return;
+    }
+    if (h !== '' && h.indexOf('detail/') !== 0) closeDrawer(true);
+    if (h === 'explore') { setScreen('explore'); return; }
+    if (h === 'watch') { setScreen('watch'); return; }
+    if (h === 'help' || h === 'guide') { openHelp(); return; }
+    if (h === '' || h === 'top' || (h.indexOf('detail/') !== 0)) {
+      if (!h || document.getElementById(h)) setScreen('home');
+    }
+  }
+  window.addEventListener('hashchange', routeV4);
+  window.addEventListener('popstate', routeV4);
+
+  /* 공유용 쿼리 — ?code=006260 → 종목 상세 */
+  (function () {
+    try {
+      var qs = new URLSearchParams(location.search);
+      var code = qs.get('code');
+      if (code && !location.hash) {
+        var kind = (DET.etfs || {})[code] ? 'etf' : 'stock';
+        location.replace(location.pathname + location.search + '#detail/' + kind + '/' + code.replace(/[^A-Za-z0-9._-]/g, ''));
+      }
+    } catch (e) {}
+  })();
+
+  /* ── 14) 종목 카드에 관심·계획 버튼 ─────────────────────── */
+  $$('.pick').forEach(function (card) {
+    var code = (card.id || '').replace('pick-', '');
+    if (!code) return;
+    var body = card.querySelector('.pick-body');
+    if (!body) return;
+    var bar = document.createElement('div');
+    bar.className = 'pick-userbar';
+    bar.innerHTML = '<button type="button" data-watch="' + escAttr(code) + '" data-name="' + escAttr(nameOf(code)) + '">☆ 관심</button>' +
+      '<button type="button" data-plan="' + escAttr(code) + '">🧮 계획</button>' +
+      '<button type="button" data-alert="' + escAttr(code) + '">🔔 조건</button>';
+    body.appendChild(bar);
+    syncWatchButtons(code);
+  });
+
+  /* ── 15) 통합 검색 색인 보강(섹터·일정) ─────────────────── */
+  var CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+  function choseong(s) {
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      if (c >= 0xAC00 && c <= 0xD7A3) out += CHO.charAt(Math.floor((c - 0xAC00) / 588));
+      else out += s.charAt(i).toLowerCase();
+    }
+    return out;
+  }
+  (function () {
+    var anchor = {};
+    ((DATA.flow || {}).sectors || []).forEach(function (s) {
+      if (s && s.name && s.anchor) anchor[s.name] = String(s.anchor).replace('#', '');
+    });
+    ((DATA.sectors || {}).inflow || []).forEach(function (s) {
+      if (!s || !s.name) return;
+      IDX.push({ t: 'sec:' + s.name, n: s.name, m: '섹터', k: 'sector', hs: choseong(s.name),
+                 a: anchor[s.name] || 'sectors', c: s.chg });
+    });
+    var calIdx = {};
+    ((DATA.cal_days || [])).forEach(function (d, i) { if (d && d.iso) calIdx[d.iso] = i; });
+    ((DATA.schedule || [])).forEach(function (e) {
+      if (!e || !e.name) return;
+      var iso = String(e.date || '').slice(0, 10);
+      IDX.push({ t: 'ev:' + iso + ':' + String(e.name).slice(0, 8), n: e.name, m: '일정', k: 'event',
+                 hs: choseong(e.name), d: iso.slice(5).replace('-', '/'),
+                 cal: calIdx[iso] != null ? calIdx[iso] : -1 });
+    });
+  })();
+
+  /* ── 16) 초기 상태 ─────────────────────────────────────── */
+  renderWatch();
+  setScreen(location.hash === '#explore' ? 'explore' : (location.hash === '#watch' ? 'watch' : 'home'));
+  if (location.hash === '#explore') applyExplore(exTab);
+  routeV4();
+  syncThemeBtns();
+
+  /* 상세 페이지(#detail/...)에 도구 붙이기 — 기존 라우터가 그린 뒤 실행 */
+  function decorateDetailRoot() {
+    var r = $('#detailRoot');
+    if (!r || r.hidden) return;
+    var m = (location.hash || '').match(/^#detail\/(stock|etf|index)\/([A-Za-z0-9._-]+)$/);
+    if (m && m[1] === 'stock') injectTools(r, 'stock', m[2]);
+  }
+  window.addEventListener('hashchange', function () { setTimeout(decorateDetailRoot, 60); });
+  setTimeout(decorateDetailRoot, 120);
+
+  /* ESC: 시트 → 패널 순서로 닫기 */
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Escape') return;
+    if (sheet && !sheet.hidden) { closeSheet(); return; }
+    if (drawer && !drawer.hidden) closeDrawer(false);
+  });
+
+  /* 화면 폭이 넓어지면 열린 패널 유지, 좁아지면 전체 페이지로 */
+  window.addEventListener('resize', function () {
+    if (!wide() && drawer && !drawer.hidden) {
+      var m = (location.hash || '').match(/^#panel\/(stock|etf|index)\/(.+)$/);
+      if (m) location.hash = '#detail/' + m[1] + '/' + m[2];
+      else closeDrawer(true);
+    }
+  });
 })();
